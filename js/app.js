@@ -38,6 +38,7 @@
     postedDecisions: LS.get("postedDecisions", []), // group-submitted decisions
     proposedStays: LS.get("proposedStays", []), // group-proposed hotels {id,city,name,tag,note,author}
     flights: LS.get("flightsLocal", []), // {traveler, dir, airline, flight_no, airport, date, time, note}
+    fares: LS.get("faresLocal", []),     // {id, route, price, currency, note, author, created_at}
     photos: [],         // uploaded trip photos
   };
   const save = () => {
@@ -76,6 +77,7 @@
       if (table === "all" || table === "decisions")jobs.push(Backend.fetchDecisions().then((d) => state.postedDecisions = d));
       if (table === "all" || table === "stay_options") jobs.push(Backend.fetchStayOptions().then((s) => state.proposedStays = s));
       if (table === "all" || table === "flights")  jobs.push(Backend.fetchFlights().then((f) => state.flights = f));
+      if (table === "all" || table === "fares")    jobs.push(Backend.fetchFares().then((f) => state.fares = f));
       if (table === "all" || table === "photos")   jobs.push(Backend.fetchPhotos().then((p) => state.photos = p));
       await Promise.all(jobs);
     },
@@ -629,6 +631,98 @@
   }
 
   /* =======================================================================
+     FARES (price alerts + shared price log)
+     ==================================================================== */
+  function sparkline(values, target) {
+    const w = 280, h = 56, pad = 5;
+    const all = target != null ? values.concat([target]) : values;
+    const min = Math.min(...all), max = Math.max(...all), range = (max - min) || 1;
+    const x = (i) => pad + (values.length === 1 ? 0.5 : i / (values.length - 1)) * (w - 2 * pad);
+    const y = (v) => pad + (1 - (v - min) / range) * (h - 2 * pad);
+    const pts = values.map((v, i) => `${x(i).toFixed(1)},${y(v).toFixed(1)}`).join(" ");
+    const ty = target != null ? y(target).toFixed(1) : 0;
+    return `<svg viewBox="0 0 ${w} ${h}" style="width:100%;height:${h}px;overflow:visible">
+      ${target != null ? `<line x1="0" y1="${ty}" x2="${w}" y2="${ty}" stroke="var(--matcha)" stroke-width="1" stroke-dasharray="4 3"/>` : ""}
+      <polyline points="${pts}" fill="none" stroke="var(--ai)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+      ${values.map((v, i) => `<circle cx="${x(i).toFixed(1)}" cy="${y(v).toFixed(1)}" r="2.6" fill="${target != null && v <= target ? "var(--matcha)" : "var(--ai)"}"/>`).join("")}
+    </svg>`;
+  }
+  function renderFares() {
+    const s = $("#screen-fares");
+    const D = T.fareDates;
+    const gflights = (r) => "https://www.google.com/travel/flights?q=" + encodeURIComponent(`Flights from ${r.from} to ${r.to} on ${D.depart} through ${D.return}`);
+    const kayak = (r) => `https://www.kayak.com/flights/${r.from}-${r.to}/${D.depart}/${D.return}`;
+    s.innerHTML = `
+      <div class="section-title">Fares</div>
+      <div class="section-sub">Watch prices, log what you spot. Target: <b>$${T.fareTarget.toLocaleString()}/person</b> — book when it hits. ${SYNC.on ? "Log is shared." : SYNC.configured ? "Syncing…" : "Local for now."}</div>
+
+      <div class="card">
+        <h3>📉 Set price alerts (free)</h3>
+        <p class="section-sub" style="margin:4px 0 12px">Open each route and tap <b>“Track prices”</b> on Google Flights — it emails you when the fare moves. Once per route does it.</p>
+        ${T.fareRoutes.map((r) => `
+          <div class="row" style="padding-bottom:6px">
+            <div class="r-main"><div class="r-title">${esc(r.label)}</div><div class="r-sub">${esc(r.from)} → ${esc(r.to)} · ${esc(r.who)}</div></div>
+          </div>
+          <div class="btn-row" style="margin:0 0 8px">
+            <a class="btn primary" href="${gflights(r)}" target="_blank" rel="noopener" style="flex:1;text-align:center;text-decoration:none">Google Flights</a>
+            <a class="btn ghost" href="${kayak(r)}" target="_blank" rel="noopener" style="flex:1;text-align:center;text-decoration:none">Kayak</a>
+          </div>`).join("")}
+        <p class="section-sub" style="margin:6px 0 0">${fmtDate(D.depart).mon} ${fmtDate(D.depart).day} → ${fmtDate(D.return).mon} ${fmtDate(D.return).day}, 2027 · round-trip.</p>
+      </div>
+
+      ${T.fareRoutes.map((r) => {
+        const rows = state.fares.filter((f) => f.route === r.id).slice().sort((a, b) => (a.created_at || "").localeCompare(b.created_at || ""));
+        const prices = rows.map((x) => Number(x.price));
+        const low = prices.length ? Math.min(...prices) : null;
+        const latest = prices.length ? prices[prices.length - 1] : null;
+        return `<div class="card">
+          <div style="display:flex;align-items:center;justify-content:space-between;gap:8px">
+            <h3 style="margin:0">${esc(r.label)}</h3>
+            ${low != null ? `<span class="pill ${low <= T.fareTarget ? "hakone" : "osaka"}">low $${low.toLocaleString()}</span>` : `<span class="pill any">no data</span>`}
+          </div>
+          ${prices.length >= 2 ? `<div style="margin:12px 0 8px">${sparkline(prices, T.fareTarget)}</div>` : ""}
+          <div class="r-sub">${latest != null ? `Latest $${latest.toLocaleString()} · ${prices.length} log${prices.length === 1 ? "" : "s"} · target $${T.fareTarget.toLocaleString()}` : "No prices logged yet."}</div>
+          ${rows.slice().reverse().slice(0, 5).map((x) => {
+            const t = byId(x.author) || {};
+            return `<div class="row"><span class="avatar" style="width:26px;height:26px;font-size:9px;${avatarBg(t)}">${avatarTxt(t)}</span>
+              <div class="r-main"><div class="r-title">$${Number(x.price).toLocaleString()}</div><div class="r-sub">${x.created_at ? esc(new Date(x.created_at).toLocaleDateString()) : ""}${x.note ? " · " + esc(x.note) : ""}</div></div>
+              ${x.author === state.me ? `<button class="btn danger" data-faredel="${x.id}">✕</button>` : ""}</div>`;
+          }).join("")}
+        </div>`;
+      }).join("")}
+
+      <div class="card">
+        <h3>Log a price you found</h3>
+        <div class="expense-add">
+          <select id="fareRoute">${T.fareRoutes.map((r) => `<option value="${r.id}">${esc(r.label)}</option>`).join("")}</select>
+          <input id="farePrice" type="number" inputmode="decimal" placeholder="Price per person (USD)" />
+          <input id="fareNote" placeholder="Note (airline, site…) — optional" />
+          <button class="btn primary" id="fareAdd">Log price</button>
+        </div>
+      </div>`;
+    $("#fareAdd").addEventListener("click", addFare);
+    s.querySelectorAll("[data-faredel]").forEach((b) => b.addEventListener("click", () => removeFare(b.dataset.faredel)));
+  }
+  async function addFare() {
+    const route = $("#fareRoute").value, price = parseFloat($("#farePrice").value);
+    if (!(price > 0)) { alert("Enter a price."); return; }
+    const note = $("#fareNote").value.trim(), author = state.me || "";
+    if (SYNC.on) {
+      const row = await Backend.addFare({ route, price, currency: "USD", note, author });
+      if (row) state.fares.push(row);
+    } else {
+      state.fares.push({ id: "lf" + Date.now(), route, price, currency: "USD", note, author, created_at: new Date().toISOString() });
+      LS.set("faresLocal", state.fares);
+    }
+    renderFares();
+  }
+  async function removeFare(id) {
+    state.fares = state.fares.filter((x) => String(x.id) !== String(id));
+    if (SYNC.on) await Backend.removeFare(id); else LS.set("faresLocal", state.fares);
+    renderFares();
+  }
+
+  /* =======================================================================
      BUDGET (shared expenses + settle up)
      ==================================================================== */
   function toUSD(amount, cur) {
@@ -998,7 +1092,7 @@
   const RENDERERS = {
     home: renderHome, itinerary: renderItinerary, crew: renderCrew, stays: renderStays,
     flights: renderFlights, budget: renderBudget, packing: renderPacking,
-    decisions: renderDecisions, booking: renderBooking, ideas: renderIdeas, photos: renderPhotos, guide: renderGuide,
+    decisions: renderDecisions, booking: renderBooking, fares: renderFares, ideas: renderIdeas, photos: renderPhotos, guide: renderGuide,
   };
   function renderCurrent() {
     const active = $(".screen.active");

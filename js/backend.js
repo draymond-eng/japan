@@ -81,6 +81,20 @@
     catch (e) { console.warn("removeDecision", e); return false; }
   }
 
+  /* ---- Fares (logged flight prices over time) ----------------------------- */
+  async function fetchFares() {
+    try { const { data, error } = await client.from("fares").select("*").order("created_at", { ascending: true }); if (error) throw error; return data || []; }
+    catch (e) { console.warn("fetchFares", e); return []; }
+  }
+  async function addFare(row) {
+    try { const { data, error } = await client.from("fares").insert(row).select().single(); if (error) throw error; return data; }
+    catch (e) { console.warn("addFare", e); return null; }
+  }
+  async function removeFare(id) {
+    try { await client.from("fares").delete().eq("id", id); return true; }
+    catch (e) { console.warn("removeFare", e); return false; }
+  }
+
   /* ---- Flights (one row per traveler + direction) ------------------------- */
   async function fetchFlights() {
     try { const { data, error } = await client.from("flights").select("*"); if (error) throw error; return data || []; }
@@ -146,6 +160,7 @@
         .on("postgres_changes", { event: "*", schema: "public", table: "decisions" }, () => onChange("decisions"))
         .on("postgres_changes", { event: "*", schema: "public", table: "stay_options" }, () => onChange("stay_options"))
         .on("postgres_changes", { event: "*", schema: "public", table: "flights" }, () => onChange("flights"))
+        .on("postgres_changes", { event: "*", schema: "public", table: "fares" }, () => onChange("fares"))
         .on("postgres_changes", { event: "*", schema: "public", table: "photos" }, () => onChange("photos"))
         .subscribe();
     } catch (e) { console.warn("subscribe", e); return null; }
@@ -159,6 +174,7 @@
     fetchDecisions, addDecision, removeDecision,
     fetchStayOptions, addStayOption, removeStayOption,
     fetchFlights, upsertFlight, removeFlight,
+    fetchFares, addFare, removeFare,
     fetchPhotos, uploadPhoto, removePhoto,
     subscribe,
   };

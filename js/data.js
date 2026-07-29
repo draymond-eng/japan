@@ -109,6 +109,14 @@ const TRIP = {
   ],
   flightsNote: "Round-trip Haneda for everyone. Who's in the Chicago 4 vs the DC 2? → assign in-app once bookings are set.",
 
+  /* ---- Fares: routes to watch + a target to book at ----------------------- */
+  fareDates: { depart: "2027-04-14", return: "2027-04-25" },
+  fareTarget: 1400, // USD/person — book when it hits this
+  fareRoutes: [
+    { id: "ORD-HND", label: "Chicago → Tokyo", from: "ORD", to: "HND", who: "Chicago 4" },
+    { id: "IAD-HND", label: "Washington → Tokyo", from: "IAD", to: "HND", who: "DC 2 (IAD has the Haneda nonstop)" },
+  ],
+
   /* ---- The day-by-day baseline. type: travel|sight|food|activity|rest|meet - */
   days: [
     {

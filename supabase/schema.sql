@@ -120,9 +120,23 @@ alter table public.flights enable row level security;
 drop policy if exists "anon flights" on public.flights;
 create policy "anon flights" on public.flights for all using (true) with check (true);
 
+create table if not exists public.fares (
+  id         uuid primary key default gen_random_uuid(),
+  route      text not null,                -- e.g. ORD-HND
+  price      numeric not null,
+  currency   text default 'USD',
+  note       text default '',
+  author     text default '',
+  created_at timestamptz default now()
+);
+alter table public.fares enable row level security;
+drop policy if exists "anon fares" on public.fares;
+create policy "anon fares" on public.fares for all using (true) with check (true);
+
 alter publication supabase_realtime add table public.decisions;
 alter publication supabase_realtime add table public.stay_options;
 alter publication supabase_realtime add table public.flights;
+alter publication supabase_realtime add table public.fares;
 
 -- ---- Storage bucket for photos ---------------------------------------------
 insert into storage.buckets (id, name, public)
