@@ -20,18 +20,22 @@
     get(k, d) { try { return JSON.parse(localStorage.getItem("jp27_" + k)) ?? d; } catch { return d; } },
     set(k, v) { try { localStorage.setItem("jp27_" + k, JSON.stringify(v)); } catch {} },
   };
+  // Backend sync status. Flips to true once a shared backend is wired in;
+  // until then everything persists per-device via localStorage.
+  const SYNC = { on: false };
   const state = {
     me: LS.get("me", null),
     packing: LS.get("packing", {}),
     decisions: LS.get("decisions", {}), // {decisionId: optionId}
+    stayVotes: LS.get("stayVotes", {}), // {city: optionId}
     ideas: LS.get("ideas", {}),         // {ideaId: true}
     expenses: LS.get("expenses", []),
     cityFilter: "all",
   };
   const save = () => {
     LS.set("me", state.me); LS.set("packing", state.packing);
-    LS.set("decisions", state.decisions); LS.set("ideas", state.ideas);
-    LS.set("expenses", state.expenses);
+    LS.set("decisions", state.decisions); LS.set("stayVotes", state.stayVotes);
+    LS.set("ideas", state.ideas); LS.set("expenses", state.expenses);
   };
 
   /* ---- Type metadata ----------------------------------------------------- */
@@ -117,7 +121,7 @@
       <div class="quick-grid">
         <button class="quick-tile" data-go="itinerary"><div class="qi">🗓️</div><div class="qt">Itinerary</div><div class="qs">11 days, day-by-day</div></button>
         <button class="quick-tile" data-go="map"><div class="qi">🗺️</div><div class="qt">Map</div><div class="qs">Every stop pinned</div></button>
-        <button class="quick-tile" data-go="stays"><div class="qi">🏨</div><div class="qt">Stays</div><div class="qs">3 ryokans + rooms</div></button>
+        <button class="quick-tile" data-go="stays"><div class="qi">🏨</div><div class="qt">Stays</div><div class="qs">Vote on hotels</div></button>
         <button class="quick-tile" data-go="budget"><div class="qi">💰</div><div class="qt">Budget</div><div class="qs">Split & settle up</div></button>
         <button class="quick-tile" data-go="packing"><div class="qi">🧳</div><div class="qt">Packing</div><div class="qs">April layers list</div></button>
         <button class="quick-tile" data-go="guide"><div class="qi">📖</div><div class="qt">Japan Guide</div><div class="qs">The FAQ, answered</div></button>
@@ -220,7 +224,11 @@
   let map = null, markerLayer = null, mapFilter = "all";
   function collectPins() {
     const pins = [];
-    T.stays.forEach((st) => pins.push({ lat: st.lat, lng: st.lng, city: st.city, type: "stay", title: st.name, note: (T.meta.showPrices && st.priceNote) ? st.priceNote : st.address }));
+    T.stays.forEach((st) => {
+      // Pin the voted option for this city, else the suggested/first one.
+      const opt = st.options.find((o) => o.id === state.stayVotes[st.city]) || st.options.find((o) => o.recommended) || st.options[0];
+      if (opt && opt.lat) pins.push({ lat: opt.lat, lng: opt.lng, city: st.city, type: "stay", title: opt.name, note: st.label + " · " + opt.tag });
+    });
     T.days.forEach((d) => d.items.forEach((it) => {
       if (it.lat) pins.push({ lat: it.lat, lng: it.lng, city: d.city, type: it.type, title: it.title, note: it.note });
     }));
@@ -324,25 +332,32 @@
     const s = $("#screen-stays");
     s.innerHTML = `
       <div class="section-title">Where we sleep</div>
-      <div class="section-sub">"Spend on the nights the room <i>is</i> the experience; save on the nights you're just sleeping."</div>
-      ${T.stays.map((st) => `<div class="card">
-        <span class="pill ${st.city}">${cityName(st.city)}</span>
-        <h3 style="margin-top:8px">${esc(st.name)}</h3>
-        <div class="r-sub" style="font-size:13px">${esc(st.address)} · ${fmtRange(st.checkIn, st.checkOut)}</div>
-        ${T.meta.showPrices && st.priceNote ? `<div style="font-weight:800;color:var(--ai);margin:8px 0">${esc(st.priceNote)}</div>` : ""}
-        <div style="display:grid;gap:6px;margin:10px 0">
-          ${st.rooms.map((r) => `<div class="row" style="padding:8px 0">
-            <div class="r-main"><div class="r-title">🛏️ ${esc(r.name)}</div>
-              <div class="r-sub">${r.who.map((id) => esc((byId(id) || {}).name || id)).join(" · ")}</div></div>
-          </div>`).join("")}
-        </div>
-        <p style="font-size:12.5px;color:var(--ink-soft);margin:0">${esc(st.notes)}</p>
-        <a class="tl-map" href="https://www.google.com/maps/search/?api=1&query=${st.lat},${st.lng}" target="_blank" rel="noopener" style="margin-top:8px">📍 Open in Maps</a>
-      </div>`).join("")}`;
-  }
-  function fmtRange(a, b) {
-    const fa = fmtDate(a), fb = fmtDate(b);
-    return `${fa.mon} ${fa.day} → ${fb.mon} ${fb.day}`;
+      <div class="section-sub">Nothing's booked yet — here are options for each stop. Tap the one you'd vote for. ${SYNC.on ? "" : "<b>(Saved on your phone for now — shared tallies come with the backend.)</b>"}</div>
+      ${T.stays.map((st) => {
+        const mine = state.stayVotes[st.city];
+        return `<div style="margin-bottom:24px">
+          <div style="display:flex;align-items:center;gap:9px;margin:0 2px 3px">
+            <span class="pill ${st.city}">${esc(st.label)}</span>
+            <span style="font-size:11.5px;color:var(--ink-3);font-weight:800;letter-spacing:.3px">${esc(st.nights)}</span>
+          </div>
+          <div class="section-sub" style="margin:4px 2px 12px">${esc(st.note)}</div>
+          ${st.options.map((o) => `<button class="stay-opt ${mine === o.id ? "sel" : ""}" data-stay="${st.city}" data-opt="${o.id}">
+            <div class="stay-opt-main">
+              <div class="stay-opt-name">${esc(o.name)}${o.recommended ? '<span class="rec">Suggested</span>' : ""}</div>
+              <div class="stay-opt-tag">${esc(o.tag)}</div>
+              <div class="stay-opt-note">${esc(o.note)}</div>
+              <a class="tl-map" href="https://www.google.com/maps/search/?api=1&query=${o.lat},${o.lng}" target="_blank" rel="noopener" onclick="event.stopPropagation()">📍 Map</a>
+            </div>
+            <div class="stay-check">${mine === o.id ? "◉" : "◯"}</div>
+          </button>`).join("")}
+        </div>`;
+      }).join("")}`;
+    s.querySelectorAll("[data-stay]").forEach((b) => b.addEventListener("click", () => {
+      const city = b.dataset.stay;
+      state.stayVotes[city] = state.stayVotes[city] === b.dataset.opt ? undefined : b.dataset.opt;
+      save(); renderStays();
+      if (map && markerLayer) drawPins();
+    }));
   }
 
   /* =======================================================================

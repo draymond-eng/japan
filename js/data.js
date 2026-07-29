@@ -47,46 +47,57 @@ const TRIP = {
   // Day trips out of a base (shown in the itinerary filter too)
   dayTrips: ["Kamakura", "Nara", "Osaka"],
 
-  /* ---- Where we sleep (real proposals with prices) ------------------------ */
+  /* ---- Where we sleep: OPTIONS per stop for the group to vote on ----------
+     Nothing's booked. Each stop has a few options; everyone picks a favorite.
+     Add/remove options freely. `recommended: true` marks the starting pick. --- */
   stays: [
     {
-      id: "stay-tokyo", city: "tokyo",
-      name: "Onsen Ryokan Yuen Shinjuku",
+      city: "tokyo", label: "Tokyo", nights: "Apr 15–19 · 4 nights",
       checkIn: "2027-04-15", checkOut: "2027-04-19",
-      priceNote: "≈ $275 / night per couple", lat: 35.6949, lng: 139.7076,
-      address: "Shinjuku, Tokyo", confirmation: "",
-      rooms: [
-        { name: "Double 1", who: ["dj", "laura"] },
-        { name: "Double 2", who: ["ali", "draymond"] },
-        { name: "Double 3", who: ["curtis", "alexis"] },
+      note: "Home base for the first four nights — we want central, near trains and nightlife.",
+      options: [
+        { id: "tk-yuen", name: "Onsen Ryokan Yuen Shinjuku", tag: "Modern ryokan · onsen", recommended: true,
+          lat: 35.6949, lng: 139.7076,
+          note: "18th-floor hot spring, indoor + outdoor, over the Shinjuku skyline — soak every night. ⚠️ Confirm shared-bath tattoo policy if needed." },
+        { id: "tk-kimpton", name: "Kimpton Shinjuku Tokyo", tag: "Boutique design hotel",
+          lat: 35.6875, lng: 139.7101,
+          note: "Stylish boutique by Shinjuku Gyoen with a lively bar scene — easy, fun, very central for a group." },
+        { id: "tk-hoshinoya", name: "Hoshinoya Tokyo", tag: "Luxury urban ryokan",
+          lat: 35.6874, lng: 139.7649,
+          note: "Ultra-high-end tatami tower with its own hot-spring bath in Otemachi. The big splurge option." },
       ],
-      notes: "Real hot spring on the 18th floor — indoor + outdoor over the skyline. Soaking every night after 14 hours of walking is the best amenity decision on the trip. ⚠️ Confirm shared-bath tattoo policy if anyone has visible tattoos.",
     },
     {
-      id: "stay-hakone", city: "hakone",
-      name: "Yama no Chaya",
+      city: "hakone", label: "Hakone", nights: "Apr 19–20 · 1 night",
       checkIn: "2027-04-19", checkOut: "2027-04-20",
-      priceNote: "≈ $500 / person (incl. kaiseki dinner + breakfast)", lat: 35.2258, lng: 139.1044,
-      address: "Tonosawa gorge, Hakone", confirmation: "",
-      rooms: [
-        { name: "Room 1", who: ["dj", "laura"] },
-        { name: "Room 2", who: ["ali", "draymond"] },
-        { name: "Room 3", who: ["curtis", "alexis"] },
+      note: "The onsen-in-the-mountains night. This is where the room IS the experience — worth spending on.",
+      options: [
+        { id: "hk-yamanochaya", name: "Yama no Chaya", tag: "Ryokan · private baths", recommended: true,
+          lat: 35.2258, lng: 139.1044,
+          note: "Riverside gorge, a private open-air stone bath on each room's deck, kimono on arrival, kaiseki dinner. Private baths = tattoos are a non-issue." },
+        { id: "hk-gorakadan", name: "Gora Kadan", tag: "Iconic luxury ryokan",
+          lat: 35.2447, lng: 139.0466,
+          note: "One of Japan's most celebrated ryokan — a former imperial retreat, exquisite kaiseki, serene gardens." },
+        { id: "hk-tenyu", name: "Hakone Kowakien Ten-yu", tag: "Modern onsen resort",
+          lat: 35.2364, lng: 139.0537,
+          note: "Contemporary resort with big open-air baths and valley views — a lighter-touch, easier-to-book option." },
       ],
-      notes: "THE splurge. Riverside gorge setting, private open-air stone bath on each room's deck, kimono fitting on arrival. Book this FIRST. Private baths mean tattoos are a non-issue here.",
     },
     {
-      id: "stay-kyoto", city: "kyoto",
-      name: "The Gion House (both units)",
+      city: "kyoto", label: "Kyoto", nights: "Apr 20–25 · 5 nights",
       checkIn: "2027-04-20", checkOut: "2027-04-25",
-      priceNote: "≈ $180 / night per couple", lat: 35.0037, lng: 135.7760,
-      address: "Quiet Gion side street, Kyoto", confirmation: "",
-      rooms: [
-        { name: "Bedroom pair A", who: ["dj", "laura"] },
-        { name: "Bedroom pair B", who: ["ali", "draymond"] },
-        { name: "Bedroom pair C", who: ["curtis", "alexis"] },
+      note: "Five nights to finish on. Big priority: keep all six of us under one roof if we can.",
+      options: [
+        { id: "ky-gionhouse", name: "The Gion House (both units)", tag: "Whole house · sleeps 6", recommended: true,
+          lat: 35.0037, lng: 135.7760,
+          note: "Both units together: 4 bedrooms, 2 kitchens, a roof deck, quiet Gion side street. Keeps everyone together — and it's the value pick." },
+        { id: "ky-machiya", name: "Traditional machiya townhouse", tag: "Private townhouse",
+          lat: 35.0030, lng: 135.7600,
+          note: "A restored wooden machiya (Nazuna, Kyo-machiya, etc.) — tatami, a courtyard, very Kyoto. Book one large enough for six." },
+        { id: "ky-node", name: "Node Hotel / Ace Hotel Kyoto", tag: "Design hotel",
+          lat: 35.0047, lng: 135.7690,
+          note: "Central boutique hotel if we'd rather have hotel service + separate rooms than share a house." },
       ],
-      notes: "Both units booked together: 4 bedrooms, 2 kitchens, a roof deck. Cheapest of the three and the one that keeps all six under one roof. Book this SECOND.",
     },
   ],
 
