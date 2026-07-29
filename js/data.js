@@ -25,6 +25,7 @@ const TRIP = {
     estGroup: 27500,
     estNote: "Add 8–10% for 2027 pricing. Yen at 164/USD right now.",
     draft: true,          // baseline / open for discussion
+    showPrices: false,    // ← we don't know real prices yet. Flip to true to surface $ estimates.
   },
 
   /* ---- The crew: 6 travelers, 3 couples ----------------------------------- */
@@ -222,53 +223,109 @@ const TRIP = {
   /* status: open|leaning|decided. Votes are stored per-device (see note in UI). */
   decisions: [
     {
-      id: "d-hakone", title: "Yama no Chaya — worth the $500/person?", status: "leaning",
-      note: "The Hakone splurge: private open-air bath, kimono, kaiseki. The 'room is the experience' night.",
+      id: "d-pace", title: "How hard do we go?", status: "open",
+      note: "Sets the whole tone. There's no wrong answer — but we should all be on the same page before we book.",
       options: [
-        { id: "in", label: "In — it's the trip highlight", note: "Book it first, as planned." },
-        { id: "trim", label: "Find something cheaper", note: "Keep a Hakone night but at a lower price point." },
-        { id: "skip", label: "Skip Hakone, extra Kyoto night", note: "Go straight Tokyo → Kyoto." },
+        { id: "full", label: "Dawn to midnight", note: "See everything, sleep when we're home." },
+        { id: "balanced", label: "Balanced", note: "Big days, but real downtime built in." },
+        { id: "slow", label: "Slow & spacious", note: "Fewer things, done well. Long dinners, long soaks." },
+      ],
+    },
+    {
+      id: "d-splurge", title: "If we splurge big on ONE thing, it's…", status: "open",
+      note: "Everything else we keep reasonable. Where does the group want the 'wow' to land?",
+      options: [
+        { id: "ryokan", label: "The Hakone ryokan night", note: "Private open-air baths + kaiseki in the gorge." },
+        { id: "kaiseki", label: "The big kaiseki dinner", note: "One unforgettable meal in Kyoto." },
+        { id: "experience", label: "A standout experience", note: "Geisha dance, sumo, a private guide day." },
+        { id: "even", label: "Spread it evenly", note: "No single blowout — comfortable across the board." },
+      ],
+    },
+    {
+      id: "d-hakone", title: "The Hakone onsen night — in or out?", status: "leaning",
+      note: "Yama no Chaya: riverside gorge, a private open-air stone bath on each room's deck, kimono on arrival, kaiseki dinner. The 'room IS the experience' night.",
+      options: [
+        { id: "in", label: "In — trip centerpiece", note: "Worth it. Book it first." },
+        { id: "simpler", label: "Keep Hakone, simpler ryokan", note: "Still an onsen night, lighter touch." },
+        { id: "skip", label: "Skip it, extra Kyoto night", note: "Go straight Tokyo → Kyoto." },
+      ],
+    },
+    {
+      id: "d-meals", title: "How many nights do we all eat together?", status: "open",
+      note: "Six people, three couples. Somewhere between 'every meal as a crew' and 'do your own thing' is the sweet spot.",
+      options: [
+        { id: "all", label: "Every night — we're a crew", note: "Book big tables everywhere." },
+        { id: "most", label: "Most nights, some couple time", note: "A couple of nights off to roam solo." },
+        { id: "few", label: "A few key dinners", note: "3–4 group meals, otherwise free." },
+      ],
+    },
+    {
+      id: "d-nightlife", title: "What's our night-out energy?", status: "open",
+      note: "Golden Gai, karaoke, and late izakayas are right there — or not. Good to know before we plan evenings.",
+      options: [
+        { id: "big", label: "Let's go", note: "Golden Gai, karaoke, late-night ramen." },
+        { id: "some", label: "A few fun nights", note: "Mostly early, a couple of blowouts." },
+        { id: "chill", label: "Chill", note: "Dinner, a soak, and bed." },
+      ],
+    },
+    {
+      id: "d-kamakura", title: "Kamakura day: split up or stick together?", status: "open",
+      note: "The plan has the surfer paddling out at Kugenuma while the other five do the Great Buddha + bamboo, then everyone regroups for lunch.",
+      options: [
+        { id: "split", label: "Split — surf vs temples", note: "Regroup for lunch + Enoshima." },
+        { id: "together", label: "All together", note: "One plan, no one solo." },
+        { id: "weather", label: "Decide day-of", note: "Let the surf/weather call it." },
       ],
     },
     {
       id: "d-teamlab", title: "teamLab: Planets or Borderless?", status: "open",
-      note: "Both are incredible. Planets = barefoot, water rooms (Toyosu). Borderless = maze of rooms (Azabudai).",
+      note: "Both are jaw-dropping digital-art museums in Tokyo — we do one. BOOK timed tickets either way.",
       options: [
-        { id: "planets", label: "Planets", note: "Water + light, wear rollable pants." },
-        { id: "borderless", label: "Borderless", note: "Wander-and-get-lost rooms." },
+        { id: "planets", label: "Planets", note: "Barefoot through water + light rooms (Toyosu). Wear rollable pants." },
+        { id: "borderless", label: "Borderless", note: "Wander-and-get-lost maze of rooms (Azabudai)." },
       ],
     },
     {
-      id: "d-osaka", title: "Friday: is the Osaka late night worth it?", status: "open",
-      note: "Nara by day then Dotonbori by night = back to Kyoto ~11pm. Big fun, long day.",
+      id: "d-osaka", title: "Nara by day + Osaka by night — worth the ~11pm return?", status: "open",
+      note: "Todai-ji and the deer, then over to Dotonbori for the street-food madness, back to Kyoto around eleven. Big day, big payoff.",
       options: [
-        { id: "yes", label: "Yes — Dotonbori is a must", note: "Do the full day." },
-        { id: "no", label: "Skip Osaka, easy Kyoto night", note: "Nara only, dinner back in Kyoto." },
+        { id: "yes", label: "Yes — Dotonbori's a must", note: "Do the full day." },
+        { id: "no", label: "Nara only, easy Kyoto night", note: "Skip the late Osaka run." },
+      ],
+    },
+    {
+      id: "d-kimono", title: "Kimono / yukata day in Kyoto?", status: "open",
+      note: "Rent traditional dress for a day wandering the Higashiyama stone lanes. Unreal photos.",
+      options: [
+        { id: "all", label: "Yes — all six", note: "Full-group photo op." },
+        { id: "optional", label: "Optional", note: "Whoever's into it." },
+        { id: "skip", label: "Skip it", note: "Not our thing." },
       ],
     },
     {
       id: "d-craft", title: "Kyoto craft workshop — which one?", status: "open",
-      note: "Hands-on Thursday afternoon before we cook at the house.",
+      note: "A hands-on afternoon before we cook together at the house. We pick one for the group.",
       options: [
         { id: "pottery", label: "Pottery", note: "Throw a bowl to take home." },
-        { id: "indigo", label: "Indigo dyeing (aizome)", note: "Dye a scarf/tenugui." },
-        { id: "knife", label: "Knife making", note: "Sharpen/finish your own blade." },
+        { id: "indigo", label: "Indigo dyeing (aizome)", note: "Dye your own scarf/tenugui." },
+        { id: "knife", label: "Knife making", note: "Finish + sharpen your own blade." },
         { id: "wood", label: "Woodwork", note: "Chopsticks / small joinery." },
       ],
     },
     {
-      id: "d-kaiseki", title: "The big kaiseki dinner — Kikunoi or Hyotei?", status: "open",
-      note: "The one splurge meal of the trip. Both are legendary and 300+ years old. Book weeks ahead.",
+      id: "d-kaiseki", title: "The big kaiseki dinner — where?", status: "open",
+      note: "The one splurge meal. Both are legendary and 300+ years old — and both book out weeks ahead, so we decide early.",
       options: [
         { id: "kikunoi", label: "Kikunoi", note: "3 Michelin stars, Higashiyama." },
-        { id: "hyotei", label: "Hyotei", note: "400+ years, near Nanzenji." },
+        { id: "hyotei", label: "Hyotei", note: "400+ years old, near Nanzenji." },
+        { id: "either", label: "Whichever we can book", note: "First one with 6 seats wins." },
       ],
     },
     {
-      id: "d-return", title: "Apr 25 return: is the Haneda flight before noon?", status: "open",
-      note: "Still open. If the flight is before noon, the 7:30 Nozomi from Kyoto doesn't work and we'd need a final Tokyo night on the 24th.",
+      id: "d-return", title: "Apr 25 return: what time's the Haneda flight?", status: "open",
+      note: "The one real logistics unknown. If the flight's before noon, the 7:30 Nozomi from Kyoto doesn't work — we'd need a final Tokyo night on the 24th.",
       options: [
-        { id: "afternoon", label: "Afternoon flight — plan holds", note: "Morning Nozomi works." },
+        { id: "afternoon", label: "Afternoon flight — plan holds", note: "Morning Nozomi works fine." },
         { id: "morning", label: "Morning flight — add a Tokyo night", note: "Move to Tokyo on the 24th." },
       ],
     },

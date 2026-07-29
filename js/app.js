@@ -106,7 +106,7 @@
           ${T.travelers.map((t, i) => `<div class="avatar stack" style="background:${t.color}" title="${esc(t.name)}">${initials(t.name)}</div>`).join("")}
         </div>
         <p style="margin:12px 0 0;font-size:13px;color:var(--ink-soft)">
-          6 travelers · 3 couples · ${T.meta.estGroup ? "≈ $" + T.meta.estGroup.toLocaleString() + " group / $" + T.meta.estPerPerson.toLocaleString() + " per person" : ""}
+          6 travelers · 3 couples${T.meta.showPrices ? " · ≈ $" + T.meta.estGroup.toLocaleString() + " group / $" + T.meta.estPerPerson.toLocaleString() + " per person" : ""}
         </p>
       </div>
 
@@ -217,7 +217,7 @@
   let map = null, markerLayer = null, mapFilter = "all";
   function collectPins() {
     const pins = [];
-    T.stays.forEach((st) => pins.push({ lat: st.lat, lng: st.lng, city: st.city, type: "stay", title: st.name, note: st.priceNote || st.address }));
+    T.stays.forEach((st) => pins.push({ lat: st.lat, lng: st.lng, city: st.city, type: "stay", title: st.name, note: (T.meta.showPrices && st.priceNote) ? st.priceNote : st.address }));
     T.days.forEach((d) => d.items.forEach((it) => {
       if (it.lat) pins.push({ lat: it.lat, lng: it.lng, city: d.city, type: it.type, title: it.title, note: it.note });
     }));
@@ -326,7 +326,7 @@
         <span class="pill ${st.city}">${cityName(st.city)}</span>
         <h3 style="margin-top:8px">${esc(st.name)}</h3>
         <div class="r-sub" style="font-size:13px">${esc(st.address)} · ${fmtRange(st.checkIn, st.checkOut)}</div>
-        <div style="font-weight:800;color:var(--ai);margin:8px 0">${esc(st.priceNote || "")}</div>
+        ${T.meta.showPrices && st.priceNote ? `<div style="font-weight:800;color:var(--ai);margin:8px 0">${esc(st.priceNote)}</div>` : ""}
         <div style="display:grid;gap:6px;margin:10px 0">
           ${st.rooms.map((r) => `<div class="row" style="padding:8px 0">
             <div class="r-main"><div class="r-title">🛏️ ${esc(r.name)}</div>
@@ -384,10 +384,13 @@
       <div class="section-title">Budget & settle-up</div>
       <div class="section-sub">Log shared expenses; balances update live. Saved on this phone — a shared version is a fast follow.</div>
 
-      <div class="card">
+      ${T.meta.showPrices ? `<div class="card">
         <h3>Trip estimate</h3>
         <div class="r-sub" style="font-size:13px">≈ <b>$${T.meta.estPerPerson.toLocaleString()}</b>/person · <b>$${T.meta.estGroup.toLocaleString()}</b> group. ${esc(T.meta.estNote)}</div>
-      </div>
+      </div>` : `<div class="card">
+        <h3>Trip cost — TBD</h3>
+        <div class="r-sub" style="font-size:13px">We'll fill in real numbers once flights and stays are booked. Use this tab to split and settle shared expenses as they come up.</div>
+      </div>`}
 
       <div class="section-title" style="font-size:16px">Balances</div>
       <div class="balance-grid">
