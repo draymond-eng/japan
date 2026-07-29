@@ -31,12 +31,88 @@
     ideas: LS.get("ideas", {}),         // {ideaId: true}
     expenses: LS.get("expenses", []),
     cityFilter: "all",
+    // Shared (populated from the backend when SYNC.on):
+    allVotes: [],       // [{kind, topic, choice, voter}]
+    postedIdeas: LS.get("postedIdeas", []), // group-submitted ideas (local until synced)
+    photos: [],         // uploaded trip photos
   };
   const save = () => {
     LS.set("me", state.me); LS.set("packing", state.packing);
     LS.set("decisions", state.decisions); LS.set("stayVotes", state.stayVotes);
     LS.set("ideas", state.ideas); LS.set("expenses", state.expenses);
   };
+
+  /* =======================================================================
+     SYNC — shared data via the backend (Supabase). Degrades to local mode.
+     ==================================================================== */
+  const Sync = {
+    async init() {
+      if (!window.Backend || !Backend.init()) return; // stays in local mode
+      SYNC.on = true;
+      await Sync.hydrate("all");
+      Backend.subscribe(async (table) => { await Sync.hydrate(table); renderCurrent(); });
+      renderAll();
+    },
+    async hydrate(table) {
+      if (!SYNC.on) return;
+      const jobs = [];
+      if (table === "all" || table === "votes")    jobs.push(Backend.fetchVotes().then((v) => state.allVotes = v));
+      if (table === "all" || table === "expenses") jobs.push(Backend.fetchExpenses().then((rows) => {
+        state.expenses = rows.map((r) => ({ id: r.id, label: r.label, amount: Number(r.amount), currency: r.currency, paidBy: r.paid_by, splitAmong: r.split_among || [] }));
+      }));
+      if (table === "all" || table === "ideas")    jobs.push(Backend.fetchIdeas().then((i) => state.postedIdeas = i));
+      if (table === "all" || table === "photos")   jobs.push(Backend.fetchPhotos().then((p) => state.photos = p));
+      await Promise.all(jobs);
+    },
+  };
+
+  // ---- Unified vote model (works in both shared and local mode) -----------
+  // kind: 'decision' | 'stay' | 'idea'   choice: option id (or 'up' for ideas)
+  function myVote(kind, topic) {
+    if (SYNC.on) {
+      const r = state.allVotes.find((v) => v.kind === kind && v.topic === topic && v.voter === state.me);
+      return r ? r.choice : null;
+    }
+    if (kind === "decision") return state.decisions[topic] || null;
+    if (kind === "stay") return state.stayVotes[topic] || null;
+    if (kind === "idea") return state.ideas[topic] ? "up" : null;
+    return null;
+  }
+  function tally(kind, topic) {
+    const m = {};
+    if (SYNC.on) {
+      state.allVotes.filter((v) => v.kind === kind && v.topic === topic)
+        .forEach((v) => { (m[v.choice] = m[v.choice] || []).push(v.voter); });
+    } else {
+      const c = myVote(kind, topic);
+      if (c && state.me) m[c] = [state.me];
+    }
+    return m;
+  }
+  async function setVote(kind, topic, choice) {
+    if (!state.me) { openWho(); return; }
+    const cur = myVote(kind, topic);
+    const next = cur === choice ? null : choice;
+    if (SYNC.on) {
+      state.allVotes = state.allVotes.filter((v) => !(v.kind === kind && v.topic === topic && v.voter === state.me));
+      if (next != null) state.allVotes.push({ kind, topic, choice: next, voter: state.me });
+      renderCurrent();
+      await Backend.castVote(kind, topic, next, state.me);
+    } else {
+      if (kind === "decision") state.decisions[topic] = next || undefined;
+      else if (kind === "stay") state.stayVotes[topic] = next || undefined;
+      else if (kind === "idea") { if (next) state.ideas[topic] = true; else delete state.ideas[topic]; }
+      save(); renderCurrent();
+      if (map && markerLayer && kind === "stay") drawPins();
+    }
+  }
+  // Small avatar chips for a list of voter ids.
+  function voterChips(voterIds) {
+    return (voterIds || []).map((id) => {
+      const t = byId(id); if (!t) return "";
+      return `<span class="avatar vchip" style="${avatarBg(t)}" title="${esc(t.name)}">${avatarTxt(t)}</span>`;
+    }).join("");
+  }
 
   /* ---- Type metadata ----------------------------------------------------- */
   const TYPE = {
@@ -400,7 +476,7 @@
 
     s.innerHTML = `
       <div class="section-title">Budget & settle-up</div>
-      <div class="section-sub">Log shared expenses; balances update live. Saved on this phone — a shared version is a fast follow.</div>
+      <div class="section-sub">Splitwise-style: log who paid for what, and balances + settle-up update live. ${SYNC.on ? "Shared across everyone." : "<b>Local until the backend is connected.</b>"}</div>
 
       ${T.meta.showPrices ? `<div class="card">
         <h3>Trip estimate</h3>
@@ -465,18 +541,28 @@
       <button class="btn danger" data-del="${e.id}">Delete</button>
     </div>`).join("");
   }
-  function addExpense() {
+  async function addExpense() {
     const label = $("#exLabel").value.trim();
     const amount = parseFloat($("#exAmount").value);
     if (!label || !(amount > 0)) { alert("Add a description and an amount."); return; }
     const splitAmong = $$("#exSplit input:checked").map((c) => c.value);
     if (!splitAmong.length) { alert("Pick at least one person to split among."); return; }
-    state.expenses.push({ id: "e" + Date.now(), label, amount, currency: $("#exCur").value, paidBy: $("#exPaid").value, splitAmong });
-    save(); renderBudget();
+    const currency = $("#exCur").value, paidBy = $("#exPaid").value;
+    if (SYNC.on) {
+      const row = await Backend.addExpense({ label, amount, currency, paid_by: paidBy, split_among: splitAmong });
+      if (row) state.expenses.push({ id: row.id, label, amount, currency, paidBy, splitAmong });
+      renderBudget();
+    } else {
+      state.expenses.push({ id: "e" + Date.now(), label, amount, currency, paidBy, splitAmong });
+      save(); renderBudget();
+    }
   }
   function bindExpenseDelete() {
-    $$("[data-del]").forEach((b) => b.addEventListener("click", () => {
-      state.expenses = state.expenses.filter((e) => e.id !== b.dataset.del); save(); renderBudget();
+    $$("[data-del]").forEach((b) => b.addEventListener("click", async () => {
+      const id = b.dataset.del;
+      state.expenses = state.expenses.filter((e) => String(e.id) !== String(id));
+      if (SYNC.on) { await Backend.removeExpense(id); renderBudget(); }
+      else { save(); renderBudget(); }
     }));
   }
 
@@ -510,10 +596,11 @@
     const s = $("#screen-decisions");
     s.innerHTML = `
       <div class="section-title">Decisions</div>
-      <div class="section-sub">Open questions for the group. Tap your pick. ⚠️ Votes save on <i>this</i> phone only for now — a shared tally is the next upgrade.</div>
-      ${!state.me ? `<div class="card" style="border-color:var(--sakura-deep);background:#fdf3f5"><b>Tag yourself first</b> — tap "Who are you?" at the top so your picks are yours. <button class="btn primary" id="decWho" style="margin-top:10px;width:100%">Set who I am</button></div>` : ""}
+      <div class="section-sub">Open questions for the group. Tap your pick — ${SYNC.on ? "everyone's votes tally live below each option." : "<b>votes save on this phone until the backend is connected.</b>"}</div>
+      ${!state.me ? `<div class="card" style="border-color:var(--sakura-deep);background:#fdf3f5"><b>Tag yourself first</b> — tap "Who are you?" at the top so your votes are yours. <button class="btn primary" id="decWho" style="margin-top:10px;width:100%">Set who I am</button></div>` : ""}
       ${T.decisions.map((d) => {
-        const mine = state.decisions[d.id];
+        const mine = myVote("decision", d.id);
+        const counts = tally("decision", d.id);
         return `<div class="card">
           <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap">
             <h3 style="margin:0">${esc(d.title)}</h3>
@@ -521,38 +608,125 @@
           </div>
           <p class="section-sub" style="margin:8px 0 12px">${esc(d.note)}</p>
           <div style="display:grid;gap:8px">
-            ${d.options.map((o) => `<button class="who-opt ${mine === o.id ? "sel" : ""}" data-dec="${d.id}" data-opt="${o.id}" style="text-align:left;width:100%">
-              <span style="font-size:18px">${mine === o.id ? "🔘" : "⚪"}</span>
-              <div><div>${esc(o.label)}</div><div class="r-sub" style="font-weight:500">${esc(o.note || "")}</div></div>
-            </button>`).join("")}
+            ${d.options.map((o) => {
+              const voters = counts[o.id] || [];
+              const sel = mine === o.id;
+              return `<button class="who-opt ${sel ? "sel" : ""}" data-dec="${d.id}" data-opt="${o.id}" style="text-align:left;width:100%;align-items:flex-start">
+                <span style="font-size:18px;margin-top:1px">${sel ? "🔘" : "⚪"}</span>
+                <div style="flex:1;min-width:0"><div style="font-weight:700">${esc(o.label)}</div>
+                  <div class="r-sub" style="font-weight:500">${esc(o.note || "")}</div>
+                  ${voters.length ? `<div class="tally">${voterChips(voters)}<span class="tally-n">${voters.length} vote${voters.length === 1 ? "" : "s"}</span></div>` : ""}
+                </div>
+              </button>`;
+            }).join("")}
           </div>
         </div>`;
       }).join("")}`;
-    s.querySelectorAll("[data-dec]").forEach((b) => b.addEventListener("click", () => {
-      if (!state.me) { openWho(); return; }
-      state.decisions[b.dataset.dec] = b.dataset.opt; save(); renderDecisions();
-    }));
+    s.querySelectorAll("[data-dec]").forEach((b) => b.addEventListener("click", () => setVote("decision", b.dataset.dec, b.dataset.opt)));
     const dw = $("#decWho"); if (dw) dw.addEventListener("click", openWho);
   }
 
   /* =======================================================================
-     IDEAS (thumbs-up)
+     IDEAS (thumbs-up + post your own)
      ==================================================================== */
   function renderIdeas() {
     const s = $("#screen-ideas");
+    const list = [
+      ...T.ideas.map((i) => ({ ...i, posted: false })),
+      ...state.postedIdeas.map((i) => ({ id: i.id, title: i.title, note: i.note, city: i.city || "any", author: i.author, posted: true })),
+    ];
     s.innerHTML = `
       <div class="section-title">Ideas board</div>
-      <div class="section-sub">Add-ons nobody's committed to yet. 👍 the ones you'd want to do.</div>
-      ${T.ideas.map((i) => {
-        const on = !!state.ideas[i.id];
+      <div class="section-sub">Things nobody's committed to yet. 👍 what you'd want to do, and post your own. ${SYNC.on ? "Everyone sees the group's picks." : "<b>Local until the backend is connected.</b>"}</div>
+      ${list.map((i) => {
+        const voters = tally("idea", i.id)["up"] || [];
+        const on = myVote("idea", i.id) === "up";
+        const author = i.author ? esc((byId(i.author) || {}).name?.split(" ")[0] || "") : "";
         return `<div class="idea">
-          <div class="i-main"><div class="i-title">${esc(i.title)} <span class="pill ${i.city}">${i.city === "any" ? "Anytime" : cityName(i.city)}</span></div>
-            <div class="i-note">${esc(i.note)}</div></div>
-          <div class="vote"><button class="${on ? "voted" : ""}" data-idea="${i.id}">👍</button><span class="vcount">${on ? "You're in" : ""}</span></div>
+          <div class="i-main">
+            <div class="i-title">${esc(i.title)} <span class="pill ${i.city}">${i.city === "any" ? "Anytime" : cityName(i.city)}</span></div>
+            <div class="i-note">${esc(i.note || "")}${author ? ` · <i>added by ${author}</i>` : ""}</div>
+            ${voters.length ? `<div class="tally" style="margin-top:8px">${voterChips(voters)}</div>` : ""}
+            ${i.posted && i.author === state.me ? `<button class="btn danger" data-iddel="${i.id}" style="margin-top:8px">Remove</button>` : ""}
+          </div>
+          <div class="vote"><button class="${on ? "voted" : ""}" data-idea="${i.id}">👍</button><span class="vcount">${voters.length || ""}</span></div>
         </div>`;
-      }).join("")}`;
-    s.querySelectorAll("[data-idea]").forEach((b) => b.addEventListener("click", () => {
-      state.ideas[b.dataset.idea] = !state.ideas[b.dataset.idea]; save(); renderIdeas();
+      }).join("")}
+      <div class="card" style="margin-top:16px">
+        <h3>Add an idea</h3>
+        <div class="expense-add">
+          <input id="ideaTitle" placeholder="Your idea (e.g. Sunrise at a temple)" />
+          <select id="ideaCity"><option value="any">Anytime / anywhere</option>${T.cities.map((c) => `<option value="${c.id}">${esc(c.name)}</option>`).join("")}</select>
+          <input id="ideaNote" placeholder="One line about it (optional)" />
+          <button class="btn primary" id="ideaAdd">Post idea</button>
+        </div>
+      </div>`;
+    s.querySelectorAll("[data-idea]").forEach((b) => b.addEventListener("click", () => setVote("idea", b.dataset.idea, "up")));
+    s.querySelectorAll("[data-iddel]").forEach((b) => b.addEventListener("click", () => removePostedIdea(b.dataset.iddel)));
+    $("#ideaAdd").addEventListener("click", addIdea);
+  }
+  async function addIdea() {
+    const title = $("#ideaTitle").value.trim();
+    if (!title) { alert("Give your idea a title."); return; }
+    const city = $("#ideaCity").value, note = $("#ideaNote").value.trim(), author = state.me || "";
+    if (SYNC.on) {
+      const row = await Backend.addIdea({ title, note, city, author });
+      if (row) state.postedIdeas.unshift(row);
+    } else {
+      state.postedIdeas.unshift({ id: "li" + Date.now(), title, note, city, author });
+      LS.set("postedIdeas", state.postedIdeas);
+    }
+    renderIdeas();
+  }
+  async function removePostedIdea(id) {
+    state.postedIdeas = state.postedIdeas.filter((x) => String(x.id) !== String(id));
+    if (SYNC.on) await Backend.removeIdea(id); else LS.set("postedIdeas", state.postedIdeas);
+    renderIdeas();
+  }
+
+  /* =======================================================================
+     PHOTOS (shared album — backend required)
+     ==================================================================== */
+  function renderPhotos() {
+    const s = $("#screen-photos");
+    if (!SYNC.on) {
+      s.innerHTML = `
+        <div class="section-title">Photos</div>
+        <div class="section-sub">A shared album for during the trip.</div>
+        <div class="card"><h3>📸 Connect the backend to turn this on</h3>
+          <p class="r-sub" style="margin:6px 0 0">Once Supabase is wired up, everyone can upload photos here and see the whole group's shots in one live feed.</p></div>`;
+      return;
+    }
+    s.innerHTML = `
+      <div class="section-title">Photos</div>
+      <div class="section-sub">The group's shared album. Add your shots — everyone sees them live.</div>
+      <div class="card">
+        <label class="btn primary" for="photoInput" style="display:block;text-align:center">📷 Add a photo</label>
+        <input id="photoInput" type="file" accept="image/*" style="display:none" />
+        <input id="photoCaption" placeholder="Caption (optional)" style="width:100%;margin-top:10px;padding:11px 12px;border:1px solid var(--line);border-radius:var(--r-sm);font-size:14px" />
+        <div id="photoStatus" class="r-sub" style="margin-top:8px"></div>
+      </div>
+      <div class="photo-grid">
+        ${state.photos.length ? state.photos.map((p) => `<div class="photo-cell">
+          <img src="${esc(p.url)}" alt="${esc(p.caption || "trip photo")}" loading="lazy" />
+          ${p.caption ? `<div class="photo-cap">${esc(p.caption)}</div>` : ""}
+          ${p.author === state.me ? `<button class="photo-del" data-photodel="${p.id}">✕</button>` : ""}
+        </div>`).join("") : `<div class="empty" style="grid-column:1/-1">No photos yet — be the first.</div>`}
+      </div>`;
+    const input = $("#photoInput");
+    input.addEventListener("change", async () => {
+      const file = input.files[0]; if (!file) return;
+      if (!state.me) { openWho(); return; }
+      $("#photoStatus").textContent = "Uploading…";
+      const row = await Backend.uploadPhoto(file, $("#photoCaption").value.trim(), state.me);
+      if (row) { state.photos.unshift(row); renderPhotos(); }
+      else $("#photoStatus").textContent = "Upload failed — try again.";
+    });
+    s.querySelectorAll("[data-photodel]").forEach((b) => b.addEventListener("click", async () => {
+      const p = state.photos.find((x) => String(x.id) === String(b.dataset.photodel));
+      state.photos = state.photos.filter((x) => x !== p);
+      renderPhotos();
+      if (p) await Backend.removePhoto(p);
     }));
   }
 
@@ -606,7 +780,7 @@
   const RENDERERS = {
     home: renderHome, itinerary: renderItinerary, crew: renderCrew, stays: renderStays,
     flights: renderFlights, budget: renderBudget, packing: renderPacking,
-    decisions: renderDecisions, ideas: renderIdeas, guide: renderGuide,
+    decisions: renderDecisions, ideas: renderIdeas, photos: renderPhotos, guide: renderGuide,
   };
   function renderCurrent() {
     const active = $(".screen.active");
@@ -619,6 +793,7 @@
   renderAll();
   renderWhoami();
   if (!state.me) setTimeout(openWho, 600);
+  Sync.init(); // connects to the backend if configured; otherwise stays local
 
   // PWA service worker
   if ("serviceWorker" in navigator) {

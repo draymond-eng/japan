@@ -315,6 +315,23 @@ button { font-family: inherit; cursor: pointer; color: inherit; }
 .vote button.voted { background: var(--vermilion); border-color: var(--vermilion); transform: scale(1.03); }
 .vote .vcount { font-size: 10px; font-weight: 800; color: var(--matcha); letter-spacing: .3px; }
 
+/* ---- Vote tallies (avatar chips under options) -------------------------- */
+.tally { display: flex; align-items: center; flex-wrap: wrap; gap: 4px; margin-top: 8px; }
+.avatar.vchip { width: 22px; height: 22px; font-size: 8px; border-width: 1.5px; }
+.tally .avatar.vchip:not(:first-child) { margin-left: -6px; }
+.tally-n { font-size: 11px; font-weight: 800; color: var(--matcha); margin-left: 6px; letter-spacing: .3px; }
+
+/* ---- Photos grid --------------------------------------------------------- */
+.photo-grid { display: grid; grid-template-columns: repeat(2, 1fr); gap: 10px; margin-top: 4px; }
+.photo-cell { position: relative; border-radius: var(--r); overflow: hidden; background: var(--paper-2);
+  box-shadow: var(--shadow); border: 1px solid var(--line); }
+.photo-cell img { display: block; width: 100%; aspect-ratio: 1 / 1; object-fit: cover; }
+.photo-cap { position: absolute; left: 0; right: 0; bottom: 0; padding: 14px 10px 7px; font-size: 11.5px; color: #fff;
+  background: linear-gradient(180deg, transparent, rgba(0,0,0,.65)); font-weight: 600; }
+.photo-del { position: absolute; top: 6px; right: 6px; width: 26px; height: 26px; border-radius: 50%; border: none;
+  background: rgba(0,0,0,.5); color: #fff; font-size: 13px; display: grid; place-items: center; }
+@media (min-width: 560px) { .photo-grid { grid-template-columns: repeat(3, 1fr); } }
+
 /* ---- Bottom nav ---------------------------------------------------------- */
 .tabbar {
   position: fixed; bottom: 0; left: 50%; transform: translateX(-50%);

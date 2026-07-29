@@ -1,0 +1,85 @@
+-- =============================================================================
+-- Japan 2027 — Supabase setup.
+-- Run this once in your project: Supabase Dashboard → SQL Editor → paste → Run.
+-- Then put your Project URL + anon key into js/config.js.
+--
+-- NOTE on security: this is a small private friends' app with no login, so the
+-- policies below let the anon key read/write these tables. That's the standard
+-- tradeoff for a no-auth shared app. If you ever want it locked down, we can add
+-- Supabase Auth + per-user policies later.
+-- =============================================================================
+
+-- ---- Tables ----------------------------------------------------------------
+create table if not exists public.votes (
+  id         uuid primary key default gen_random_uuid(),
+  kind       text not null,          -- 'decision' | 'stay' | 'idea'
+  topic      text not null,          -- decision id / city / idea id
+  choice     text not null,          -- option id (or 'up' for ideas)
+  voter      text not null,          -- traveler id: dj, laura, ali, draymond, curtis, alexis
+  created_at timestamptz default now(),
+  unique (kind, topic, voter)        -- one vote per person per topic (upsert)
+);
+
+create table if not exists public.expenses (
+  id          uuid primary key default gen_random_uuid(),
+  label       text not null,
+  amount      numeric not null,
+  currency    text not null default 'JPY',
+  paid_by     text not null,
+  split_among text[] not null default '{}',
+  created_at  timestamptz default now()
+);
+
+create table if not exists public.ideas (
+  id         uuid primary key default gen_random_uuid(),
+  title      text not null,
+  note       text default '',
+  city       text default 'any',
+  author     text default '',
+  created_at timestamptz default now()
+);
+
+create table if not exists public.photos (
+  id         uuid primary key default gen_random_uuid(),
+  path       text not null,
+  url        text not null,
+  caption    text default '',
+  author     text default '',
+  created_at timestamptz default now()
+);
+
+-- ---- Row-level security: open policies (no-auth friends app) ----------------
+alter table public.votes    enable row level security;
+alter table public.expenses enable row level security;
+alter table public.ideas    enable row level security;
+alter table public.photos   enable row level security;
+
+drop policy if exists "anon votes"    on public.votes;
+drop policy if exists "anon expenses" on public.expenses;
+drop policy if exists "anon ideas"    on public.ideas;
+drop policy if exists "anon photos"   on public.photos;
+
+create policy "anon votes"    on public.votes    for all using (true) with check (true);
+create policy "anon expenses" on public.expenses for all using (true) with check (true);
+create policy "anon ideas"    on public.ideas    for all using (true) with check (true);
+create policy "anon photos"   on public.photos   for all using (true) with check (true);
+
+-- ---- Realtime (so tallies/feeds update live) -------------------------------
+-- Ignore "already member of publication" errors if you re-run this.
+alter publication supabase_realtime add table public.votes;
+alter publication supabase_realtime add table public.expenses;
+alter publication supabase_realtime add table public.ideas;
+alter publication supabase_realtime add table public.photos;
+
+-- ---- Storage bucket for photos ---------------------------------------------
+insert into storage.buckets (id, name, public)
+values ('trip-photos', 'trip-photos', true)
+on conflict (id) do nothing;
+
+drop policy if exists "trip-photos read"   on storage.objects;
+drop policy if exists "trip-photos insert" on storage.objects;
+drop policy if exists "trip-photos delete" on storage.objects;
+
+create policy "trip-photos read"   on storage.objects for select using (bucket_id = 'trip-photos');
+create policy "trip-photos insert" on storage.objects for insert with check (bucket_id = 'trip-photos');
+create policy "trip-photos delete" on storage.objects for delete using (bucket_id = 'trip-photos');

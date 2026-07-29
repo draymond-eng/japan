@@ -49,6 +49,7 @@
       <section class="screen" id="screen-packing"></section>
       <section class="screen" id="screen-decisions"></section>
       <section class="screen" id="screen-ideas"></section>
+      <section class="screen" id="screen-photos"></section>
       <section class="screen" id="screen-guide"></section>
     </main>
 
@@ -71,6 +72,7 @@
         <button class="sheet-item" data-screen="stays"><span class="si">🏨</span> Stays</button>
         <button class="sheet-item" data-screen="flights"><span class="si">✈️</span> Flights</button>
         <button class="sheet-item" data-screen="budget"><span class="si">💰</span> Budget</button>
+        <button class="sheet-item" data-screen="photos"><span class="si">📸</span> Photos</button>
         <button class="sheet-item" data-screen="packing"><span class="si">🧳</span> Packing</button>
         <button class="sheet-item" data-screen="ideas"><span class="si">💡</span> Ideas</button>
         <button class="sheet-item" data-screen="guide"><span class="si">📖</span> Guide</button>
@@ -94,6 +96,10 @@
   <!-- Leaflet JS -->
   <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"
           integrity="sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo=" crossorigin=""></script>
+  <!-- Supabase SDK (shared data). Degrades to local mode if it can't load. -->
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.45.4/dist/umd/supabase.js"></script>
+  <script src="js/config.js"></script>
+  <script src="js/backend.js"></script>
   <script src="js/data.js"></script>
   <script src="js/app.js"></script>
 </body>
