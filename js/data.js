@@ -12,7 +12,7 @@
 const TRIP = {
   meta: {
     title: "Japan 2027",
-    tagline: "Three Cities Social takes Japan",
+    tagline: "Six friends, ten nights in Japan",
     departUS: "2027-04-14",       // wheels up from the US (countdown target)
     landJapan: "2027-04-15",      // land Haneda, Thursday afternoon
     endDate: "2027-04-25",        // fly home Sunday

@@ -1,6 +1,6 @@
 # Japan 2027 🗾
 
-The group travel app for our April 2027 trip — **Three Cities Social takes Japan**.
+The group travel app for our April 2027 trip — six friends, ten nights in Japan.
 
 Leave the US Wed Apr 14 → land Haneda Thu Apr 15 → home Sun Apr 25. Ten nights:
 **Tokyo (4) → Hakone (1) → Kyoto (5)**, with Kamakura, Nara, and Osaka day trips.
