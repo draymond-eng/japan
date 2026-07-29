@@ -10,6 +10,6 @@
    Leave these empty to keep the app in local/per-device mode.
    ========================================================================== */
 window.SUPABASE_CONFIG = {
-  url: "",
-  anonKey: "",
+  url: "https://tgcrjsapqfogdagqoccq.supabase.co",
+  anonKey: "sb_publishable_H65vKGnPAyJo2ojZ_yksFQ_UNPpmihe",
 };
