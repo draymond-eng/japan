@@ -300,19 +300,6 @@
       </div>
 
       <div class="card" style="margin-top:16px">
-        <h3>📊 Trip so far</h3>
-        <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:10px;margin-top:8px;text-align:center">
-          ${(() => {
-            const dtg = Math.max(0, Math.ceil((new Date(T.meta.departUS + "T08:00:00") - new Date()) / 86400000));
-            const votes = SYNC.on ? state.allVotes.length : Object.keys(state.decisions).filter((k) => state.decisions[k]).length;
-            const ideas = T.ideas.length + state.postedIdeas.length;
-            const stat = (n, l) => `<div><div style="font-family:var(--serif);font-size:26px;font-weight:600;color:var(--ai)">${n}</div><div class="r-sub" style="font-size:11px">${l}</div></div>`;
-            return stat(dtg, "days to go") + stat(state.photos.length, "photos") + stat(votes, "votes cast");
-          })()}
-        </div>
-      </div>
-
-      <div class="card">
         <h3>📲 Share with the crew</h3>
         <p class="r-sub" style="margin:4px 0 12px">Send this link — everyone joins the same shared trip.</p>
         <div class="r-sub" style="word-break:break-all">${esc(location.origin + location.pathname)}</div>
