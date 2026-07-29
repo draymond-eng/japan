@@ -11,6 +11,9 @@
     { "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
   const byId = (id) => T.travelers.find((t) => t.id === id);
   const initials = (name) => name.split(/\s+/).map((w) => w[0]).slice(0, 2).join("").toUpperCase();
+  // Avatar: use a photo if the traveler has one, else a colored initials tile.
+  const avatarBg = (t) => t.photo ? `background-image:url('${t.photo}')` : `background:${t.color}`;
+  const avatarTxt = (t) => t.photo ? "" : initials(t.name);
 
   /* ---- Local persistence ------------------------------------------------- */
   const LS = {
@@ -79,9 +82,9 @@
     s.innerHTML = `
       <div class="hero">
         <div class="sun"></div>
-        <div class="kicker">${esc(T.meta.tagline)}</div>
+        <div class="kicker">April 2027 · 六人の旅</div>
         <h1>${esc(T.meta.title)}</h1>
-        <div class="dates">Thu Apr 15 – Sun Apr 25, 2027 · ${T.meta.nights} nights</div>
+        <div class="dates">Thu Apr 15 – Sun Apr 25 · ${T.meta.nights} nights on the ground</div>
         <div class="cities-row">
           ${T.cities.map((c) => `<span class="city-chip">${c.emoji} ${esc(c.name)}</span>`).join("")}
         </div>
@@ -103,7 +106,7 @@
       <div class="section-title" style="margin-top:20px">The crew</div>
       <div class="card">
         <div class="crew-strip">
-          ${T.travelers.map((t, i) => `<div class="avatar stack" style="background:${t.color}" title="${esc(t.name)}">${initials(t.name)}</div>`).join("")}
+          ${T.travelers.map((t, i) => `<div class="avatar stack" style="${avatarBg(t)}" title="${esc(t.name)}">${avatarTxt(t)}</div>`).join("")}
         </div>
         <p style="margin:12px 0 0;font-size:13px;color:var(--ink-soft)">
           6 travelers · 3 couples${T.meta.showPrices ? " · ≈ $" + T.meta.estGroup.toLocaleString() + " group / $" + T.meta.estPerPerson.toLocaleString() + " per person" : ""}
@@ -299,10 +302,10 @@
         return `<div class="pair-card">
           <div class="pair-name">${esc(p)}</div>
           ${people.map((t) => `<div class="person">
-            <div class="avatar" style="background:${t.color}">${initials(t.name)}</div>
+            <div class="avatar lg" style="${avatarBg(t)}">${avatarTxt(t)}</div>
             <div class="p-info"><div class="p-name">${esc(t.name)}${state.me === t.id ? '<span class="badge-you">YOU</span>' : ""}</div>
-              <div class="p-role">${esc(t.role || "")}</div></div>
-            <div class="p-meta">${t.from ? esc(t.from) + "<br>" : ""}${t.dietary ? "🥗 " + esc(t.dietary) : ""}</div>
+              ${t.dietary ? `<div class="p-sub">🥗 ${esc(t.dietary)}</div>` : ""}</div>
+            <div class="p-meta">${t.from ? esc(t.from) : ""}</div>
           </div>`).join("")}
         </div>`;
       }).join("")}
@@ -397,7 +400,7 @@
         ${T.travelers.map((t) => {
           const v = nets[t.id]; const cls = v > 0.5 ? "owed" : (v < -0.5 ? "owes" : "");
           const txt = Math.abs(v) < 0.5 ? "even" : (v > 0 ? "+$" + v.toFixed(0) + " owed" : "-$" + Math.abs(v).toFixed(0));
-          return `<div class="balance"><div class="bn"><span class="avatar" style="width:18px;height:18px;font-size:9px;display:inline-grid;vertical-align:middle;background:${t.color}">${initials(t.name)}</span> ${esc(t.name.split(" ")[0])}</div><div class="bv ${cls}">${txt}</div></div>`;
+          return `<div class="balance"><div class="bn"><span class="avatar" style="width:20px;height:20px;font-size:9px;border-width:1.5px;${avatarBg(t)}">${avatarTxt(t)}</span> ${esc(t.name.split(" ")[0])}</div><div class="bv ${cls}">${txt}</div></div>`;
         }).join("")}
       </div>
       ${settleText(nets)}
@@ -564,13 +567,13 @@
     if (state.me) {
       const t = byId(state.me);
       btn.textContent = t.name.split(" ")[0];
-      av.innerHTML = `<span class="avatar" style="width:24px;height:24px;font-size:11px;background:${t.color}">${initials(t.name)}</span>`;
+      av.innerHTML = `<span class="avatar" style="width:26px;height:26px;font-size:10px;border-width:1.5px;${avatarBg(t)}">${avatarTxt(t)}</span>`;
     } else { btn.textContent = "Who are you?"; av.innerHTML = "👤"; }
   }
   function openWho() {
     const box = $("#whoOptions");
     box.innerHTML = T.travelers.map((t) => `<div class="who-opt ${state.me === t.id ? "sel" : ""}" data-me="${t.id}">
-      <span class="avatar" style="width:30px;height:30px;font-size:12px;background:${t.color}">${initials(t.name)}</span>${esc(t.name)}</div>`).join("");
+      <span class="avatar" style="width:34px;height:34px;font-size:12px;${avatarBg(t)}">${avatarTxt(t)}</span>${esc(t.name)}</div>`).join("");
     box.querySelectorAll("[data-me]").forEach((o) => o.addEventListener("click", () => {
       state.me = o.dataset.me; save(); renderWhoami();
       box.querySelectorAll(".who-opt").forEach((x) => x.classList.toggle("sel", x === o));

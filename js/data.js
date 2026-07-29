@@ -30,12 +30,12 @@ const TRIP = {
 
   /* ---- The crew: 6 travelers, 3 couples ----------------------------------- */
   travelers: [
-    { id: "dj",       name: "DJ Jamiel",          pair: "DJ & Laura",     couple: true, color: "#e4573d", role: "Flights lead",   from: "", dietary: "", phone: "", funFact: "" },
-    { id: "laura",    name: "Laura Stefanow",      pair: "DJ & Laura",     couple: true, color: "#e79fb0", role: "Reservations",   from: "", dietary: "", phone: "", funFact: "" },
-    { id: "ali",      name: "Ali Washington",      pair: "The Washingtons", couple: true, color: "#2f6f9f", role: "Activities",     from: "", dietary: "", phone: "", funFact: "" },
-    { id: "draymond", name: "Draymond Washington", pair: "The Washingtons", couple: true, color: "#1f9d8f", role: "Trip organizer", from: "", dietary: "", phone: "", funFact: "" },
-    { id: "curtis",   name: "Curtis Maafoh",       pair: "The Maafohs",    couple: true, color: "#7a5cc0", role: "Budget keeper",   from: "", dietary: "", phone: "", funFact: "" },
-    { id: "alexis",   name: "Alexis Maafoh",       pair: "The Maafohs",    couple: true, color: "#d98a3d", role: "Food & dining",   from: "", dietary: "", phone: "", funFact: "" },
+    { id: "dj",       name: "DJ Jamiel",          pair: "DJ & Laura",      couple: true, color: "#c8452f", photo: "assets/crew/dj.jpg",     from: "", dietary: "", phone: "", funFact: "" },
+    { id: "laura",    name: "Laura Stefanow",      pair: "DJ & Laura",      couple: true, color: "#d98aa0", photo: "assets/crew/laura.jpg",  from: "", dietary: "", phone: "", funFact: "" },
+    { id: "ali",      name: "Ali Washington",      pair: "The Washingtons", couple: true, color: "#2f6f9f", photo: "assets/crew/ali.jpg",    from: "", dietary: "", phone: "", funFact: "" },
+    { id: "draymond", name: "Draymond Washington", pair: "The Washingtons", couple: true, color: "#1f9d8f", photo: "",                       from: "", dietary: "", phone: "", funFact: "" },
+    { id: "curtis",   name: "Curtis Maafoh",       pair: "The Maafohs",     couple: true, color: "#7a5cc0", photo: "assets/crew/curtis.jpg", from: "", dietary: "", phone: "", funFact: "" },
+    { id: "alexis",   name: "Alexis Maafoh",       pair: "The Maafohs",     couple: true, color: "#c98a3d", photo: "assets/crew/alexis.jpg", from: "", dietary: "", phone: "", funFact: "" },
   ],
 
   /* ---- Bases (the three places we sleep) ---------------------------------- */

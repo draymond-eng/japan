@@ -1,6 +1,6 @@
 /* Japan 2027 — service worker. App-shell caching so the app opens offline.
    Bump CACHE when you change core files. */
-const CACHE = "jp2027-v1";
+const CACHE = "jp2027-v2";
 const CORE = [
   "./",
   "./index.html",
@@ -9,6 +9,11 @@ const CORE = [
   "./js/app.js",
   "./manifest.webmanifest",
   "./assets/icon.svg",
+  "./assets/crew/dj.jpg",
+  "./assets/crew/laura.jpg",
+  "./assets/crew/ali.jpg",
+  "./assets/crew/curtis.jpg",
+  "./assets/crew/alexis.jpg",
 ];
 
 self.addEventListener("install", (e) => {
