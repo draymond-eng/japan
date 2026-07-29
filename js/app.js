@@ -299,13 +299,6 @@
         <button class="quick-tile" data-go="guide"><div class="qi">📖</div><div class="qt">Japan Guide</div><div class="qs">The FAQ, answered</div></button>
       </div>
 
-      <div class="card" style="margin-top:16px">
-        <h3>📲 Share with the crew</h3>
-        <p class="r-sub" style="margin:4px 0 12px">Send this link — everyone joins the same shared trip.</p>
-        <div class="r-sub" style="word-break:break-all">${esc(location.origin + location.pathname)}</div>
-        <button class="btn ghost" id="copyLink" style="margin-top:10px;width:100%">Copy link</button>
-      </div>
-
       <div class="foot-note">Built for the crew · everything syncs live · edit anytime</div>
     `;
     s.querySelectorAll("[data-go]").forEach((b) => b.addEventListener("click", () => show(b.dataset.go)));
