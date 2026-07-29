@@ -1,6 +1,6 @@
 /* Japan 2027 — service worker. App-shell caching so the app opens offline.
    Bump CACHE when you change core files. */
-const CACHE = "jp2027-v8";
+const CACHE = "jp2027-v9";
 const CORE = [
   "./",
   "./index.html",

@@ -81,6 +81,20 @@
     catch (e) { console.warn("removeDecision", e); return false; }
   }
 
+  /* ---- Flights (one row per traveler + direction) ------------------------- */
+  async function fetchFlights() {
+    try { const { data, error } = await client.from("flights").select("*"); if (error) throw error; return data || []; }
+    catch (e) { console.warn("fetchFlights", e); return []; }
+  }
+  async function upsertFlight(row) {
+    try { const { data, error } = await client.from("flights").upsert(row, { onConflict: "traveler,dir" }).select().single(); if (error) throw error; return data; }
+    catch (e) { console.warn("upsertFlight", e); return null; }
+  }
+  async function removeFlight(traveler, dir) {
+    try { await client.from("flights").delete().match({ traveler, dir }); return true; }
+    catch (e) { console.warn("removeFlight", e); return false; }
+  }
+
   /* ---- Proposed stay options (group-submitted hotels) --------------------- */
   async function fetchStayOptions() {
     try { const { data, error } = await client.from("stay_options").select("*").order("created_at", { ascending: true }); if (error) throw error; return data || []; }
@@ -131,6 +145,7 @@
         .on("postgres_changes", { event: "*", schema: "public", table: "ideas" }, () => onChange("ideas"))
         .on("postgres_changes", { event: "*", schema: "public", table: "decisions" }, () => onChange("decisions"))
         .on("postgres_changes", { event: "*", schema: "public", table: "stay_options" }, () => onChange("stay_options"))
+        .on("postgres_changes", { event: "*", schema: "public", table: "flights" }, () => onChange("flights"))
         .on("postgres_changes", { event: "*", schema: "public", table: "photos" }, () => onChange("photos"))
         .subscribe();
     } catch (e) { console.warn("subscribe", e); return null; }
@@ -143,6 +158,7 @@
     fetchIdeas, addIdea, removeIdea,
     fetchDecisions, addDecision, removeDecision,
     fetchStayOptions, addStayOption, removeStayOption,
+    fetchFlights, upsertFlight, removeFlight,
     fetchPhotos, uploadPhoto, removePhoto,
     subscribe,
   };

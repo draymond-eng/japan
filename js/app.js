@@ -37,6 +37,7 @@
     postedIdeas: LS.get("postedIdeas", []), // group-submitted ideas (local until synced)
     postedDecisions: LS.get("postedDecisions", []), // group-submitted decisions
     proposedStays: LS.get("proposedStays", []), // group-proposed hotels {id,city,name,tag,note,author}
+    flights: LS.get("flightsLocal", []), // {traveler, dir, airline, flight_no, airport, date, time, note}
     photos: [],         // uploaded trip photos
   };
   const save = () => {
@@ -74,6 +75,7 @@
       if (table === "all" || table === "ideas")    jobs.push(Backend.fetchIdeas().then((i) => state.postedIdeas = i));
       if (table === "all" || table === "decisions")jobs.push(Backend.fetchDecisions().then((d) => state.postedDecisions = d));
       if (table === "all" || table === "stay_options") jobs.push(Backend.fetchStayOptions().then((s) => state.proposedStays = s));
+      if (table === "all" || table === "flights")  jobs.push(Backend.fetchFlights().then((f) => state.flights = f));
       if (table === "all" || table === "photos")   jobs.push(Backend.fetchPhotos().then((p) => state.photos = p));
       await Promise.all(jobs);
     },
@@ -193,6 +195,18 @@
         </p>
         <button class="btn primary" style="margin-top:12px;width:100%" data-go="decisions">🗳️ Cast your votes</button>
       </div>` : ""}
+
+      ${(() => {
+        const nowItems = T.bookingOrder.filter((b) => (b.timing || "later") === "now");
+        const unbooked = nowItems.filter((b) => !(tally("booking", b.id)["done"] || []).length);
+        if (!unbooked.length) return "";
+        return `<div class="card" style="border-color:#e2ad55;background:#fdf6ea">
+          <div style="display:flex;align-items:center;gap:9px"><span style="font-size:20px">⚠️</span>
+            <b style="font-size:15px">${unbooked.length} thing${unbooked.length === 1 ? "" : "s"} to book now</b></div>
+          <p style="margin:8px 0 0;font-size:13px;color:var(--ink-2)">${unbooked.map((b) => esc(b.label.replace(/\s*\(.*\)/, ""))).join(" · ")}</p>
+          <button class="btn primary" style="margin-top:12px;width:100%" data-go="booking">📋 Open the booking timeline</button>
+        </div>`;
+      })()}
 
       <div class="countdown" id="countdown"></div>
 
@@ -548,19 +562,70 @@
      ==================================================================== */
   function renderFlights() {
     const s = $("#screen-flights");
+    const mine = (dir) => state.flights.find((f) => f.traveler === state.me && f.dir === dir) || {};
+    const flightRow = (f) => {
+      const t = byId(f.traveler) || {};
+      const line = [f.airline, f.flight_no].filter(Boolean).join(" ");
+      const when = [f.date ? `${fmtDate(f.date).wd} ${fmtDate(f.date).mon} ${fmtDate(f.date).day}` : "", f.time].filter(Boolean).join(" · ");
+      const detail = [line, when].filter(Boolean).join(" · ") || "—";
+      return `<div class="row">
+        <span class="avatar" style="width:34px;height:34px;font-size:11px;${avatarBg(t)}">${avatarTxt(t)}</span>
+        <div class="r-main"><div class="r-title">${esc((t.name || "").split(" ")[0])}${f.airport ? ` · ${esc(f.airport)}` : ""}</div>
+          <div class="r-sub">${esc(detail)}${f.note ? ` · ${esc(f.note)}` : ""}</div></div>
+      </div>`;
+    };
+    const sortKey = (f) => (f.date || "") + (f.time || "");
+    const arrivals = state.flights.filter((f) => f.dir === "arrive").slice().sort((a, b) => sortKey(a).localeCompare(sortKey(b)));
+    const departures = state.flights.filter((f) => f.dir === "depart").slice().sort((a, b) => sortKey(a).localeCompare(sortKey(b)));
+    const fields = (p, dir) => `<div class="expense-add">
+        <input id="${p}_airline" placeholder="Airline" value="${esc(mine(dir).airline || "")}" />
+        <div style="display:flex;gap:8px">
+          <input id="${p}_flight" placeholder="Flight #" value="${esc(mine(dir).flight_no || "")}" style="flex:2" />
+          <input id="${p}_airport" placeholder="Airport" value="${esc(mine(dir).airport || (dir === "arrive" ? "HND" : "HND"))}" style="flex:1" />
+        </div>
+        <div style="display:flex;gap:8px">
+          <input id="${p}_date" type="date" value="${esc(mine(dir).date || (dir === "arrive" ? "2027-04-15" : "2027-04-25"))}" style="flex:2" />
+          <input id="${p}_time" type="time" value="${esc(mine(dir).time || "")}" style="flex:1" />
+        </div>
+        <input id="${p}_note" placeholder="Note (e.g. via SFO, layover…)" value="${esc(mine(dir).note || "")}" />
+        <button class="btn primary" id="${p}Save">Save ${dir === "arrive" ? "arrival" : "departure"}</button>
+      </div>`;
     s.innerHTML = `
       <div class="section-title">Flights & arrivals</div>
-      <div class="section-sub">${esc(T.flightsNote || "")}</div>
-      ${T.flights.map((f) => `<div class="card">
-        <div style="display:flex;align-items:center;gap:10px">
-          <span style="font-size:22px">${f.dir === "arrive" ? "🛬" : "🛫"}</span>
-          <div style="flex:1">
-            <div class="r-title">${esc(f.label || (f.dir === "arrive" ? "Arrival" : "Departure"))}</div>
-            <div class="r-sub">${f.dir === "arrive" ? "Arrive" : "Depart"} ${esc(f.airport)} · ${fmtDate(f.date).wd} ${fmtDate(f.date).mon} ${fmtDate(f.date).day}${f.time ? " · " + esc(f.time) : ""}</div>
-          </div>
-        </div>
-        ${f.note ? `<p style="font-size:12.5px;color:var(--ink-soft);margin:10px 0 0">${esc(f.note)}</p>` : ""}
-      </div>`).join("")}`;
+      <div class="section-sub">${esc(T.flightsNote || "")} Everyone adds their own — ${SYNC.on ? "shared with the group." : SYNC.configured ? "syncing…" : "saved on this phone."}</div>
+      ${!state.me ? `<div class="card" style="border-color:var(--sakura-deep);background:#fdf3f5"><b>Tag yourself first</b> — tap "Who are you?" so your flights save to you. <button class="btn primary" id="flWho" style="margin-top:10px;width:100%">Set who I am</button></div>` : `
+      <div class="card">
+        <h3>✈️ Your flights</h3>
+        <p class="section-sub" style="margin:2px 0 12px">${esc((byId(state.me) || {}).name || "")} — fill in what you know; leave the rest blank.</p>
+        <div class="check-cat" style="margin:0 0 8px">🛬 Arrival</div>
+        ${fields("fa", "arrive")}
+        <div class="check-cat" style="margin:18px 0 8px">🛫 Departure</div>
+        ${fields("fd", "depart")}
+      </div>`}
+      <div class="section-title" style="font-size:16px">🛬 Arrivals board</div>
+      <div class="card">${arrivals.length ? arrivals.map(flightRow).join("") : `<div class="empty">No arrivals entered yet.</div>`}</div>
+      <div class="section-title" style="font-size:16px">🛫 Departures</div>
+      <div class="card">${departures.length ? departures.map(flightRow).join("") : `<div class="empty">No departures entered yet.</div>`}</div>`;
+    const w = $("#flWho"); if (w) w.addEventListener("click", openWho);
+    const fas = $("#faSave"); if (fas) fas.addEventListener("click", () => saveFlight("arrive"));
+    const fds = $("#fdSave"); if (fds) fds.addEventListener("click", () => saveFlight("depart"));
+  }
+  async function saveFlight(dir) {
+    if (!state.me) { openWho(); return; }
+    const p = dir === "arrive" ? "fa" : "fd";
+    const row = {
+      traveler: state.me, dir,
+      airline: $("#" + p + "_airline").value.trim(),
+      flight_no: $("#" + p + "_flight").value.trim(),
+      airport: $("#" + p + "_airport").value.trim(),
+      date: $("#" + p + "_date").value,
+      time: $("#" + p + "_time").value,
+      note: $("#" + p + "_note").value.trim(),
+    };
+    state.flights = state.flights.filter((f) => !(f.traveler === state.me && f.dir === dir));
+    state.flights.push(row);
+    if (SYNC.on) await Backend.upsertFlight(row); else LS.set("flightsLocal", state.flights);
+    renderFlights();
   }
 
   /* =======================================================================

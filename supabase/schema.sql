@@ -103,8 +103,26 @@ drop policy if exists "anon stay_options" on public.stay_options;
 create policy "anon decisions"    on public.decisions    for all using (true) with check (true);
 create policy "anon stay_options" on public.stay_options for all using (true) with check (true);
 
+create table if not exists public.flights (
+  id         uuid primary key default gen_random_uuid(),
+  traveler   text not null,                -- traveler id
+  dir        text not null,                -- 'arrive' | 'depart'
+  airline    text default '',
+  flight_no  text default '',
+  airport    text default '',
+  date       text default '',
+  time       text default '',
+  note       text default '',
+  created_at timestamptz default now(),
+  unique (traveler, dir)
+);
+alter table public.flights enable row level security;
+drop policy if exists "anon flights" on public.flights;
+create policy "anon flights" on public.flights for all using (true) with check (true);
+
 alter publication supabase_realtime add table public.decisions;
 alter publication supabase_realtime add table public.stay_options;
+alter publication supabase_realtime add table public.flights;
 
 -- ---- Storage bucket for photos ---------------------------------------------
 insert into storage.buckets (id, name, public)
