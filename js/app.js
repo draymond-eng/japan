@@ -22,7 +22,7 @@
   };
   // Backend sync status. Flips to true once a shared backend is wired in;
   // until then everything persists per-device via localStorage.
-  const SYNC = { on: false };
+  const SYNC = { on: false, configured: false };
   const state = {
     me: LS.get("me", null),
     packing: LS.get("packing", {}),
@@ -49,7 +49,15 @@
      ==================================================================== */
   const Sync = {
     async init() {
-      if (!window.Backend || !Backend.init()) return; // stays in local mode
+      const cfg = window.SUPABASE_CONFIG || {};
+      SYNC.configured = !!(cfg.url && cfg.anonKey);
+      if (!SYNC.configured) { renderAll(); return; } // genuinely local (no keys)
+      renderAll(); // reflect "syncing…" copy immediately
+      // The Supabase SDK loads from a CDN — wait for it instead of giving up.
+      for (let i = 0; i < 30 && !(window.supabase && window.supabase.createClient); i++) {
+        await new Promise((r) => setTimeout(r, 150));
+      }
+      if (!window.Backend || !Backend.init()) { renderAll(); return; } // configured but SDK failed
       SYNC.on = true;
       await Sync.hydrate("all");
       Backend.subscribe(async (table) => { await Sync.hydrate(table); renderCurrent(); });
@@ -414,7 +422,7 @@
     const s = $("#screen-stays");
     s.innerHTML = `
       <div class="section-title">Where we sleep</div>
-      <div class="section-sub">Nothing's booked — vote on a place for each stop, or propose your own. ${SYNC.on ? "Votes tally live." : "<b>Local until the backend is connected.</b>"}</div>
+      <div class="section-sub">Nothing's booked — vote on a place for each stop, or propose your own. ${SYNC.on ? "Votes tally live." : SYNC.configured ? "Syncing…" : "<b>Local until the backend is connected.</b>"}</div>
       ${T.stays.map((st) => {
         const mine = myVote("stay", st.city);
         const counts = tally("stay", st.city);
@@ -527,7 +535,7 @@
 
     s.innerHTML = `
       <div class="section-title">Budget & settle-up</div>
-      <div class="section-sub">Splitwise-style: log who paid for what, and balances + settle-up update live. ${SYNC.on ? "Shared across everyone." : "<b>Local until the backend is connected.</b>"}</div>
+      <div class="section-sub">Splitwise-style: log who paid for what, and balances + settle-up update live. ${SYNC.on ? "Shared across everyone." : SYNC.configured ? "Syncing…" : "<b>Local until the backend is connected.</b>"}</div>
 
       ${T.meta.showPrices ? `<div class="card">
         <h3>Trip estimate</h3>
@@ -651,7 +659,7 @@
     ];
     s.innerHTML = `
       <div class="section-title">Decisions</div>
-      <div class="section-sub">Open questions for the group. Tap your pick${SYNC.on ? " — everyone's votes tally live." : ". <b>Local until the backend is connected.</b>"} Anyone can add one below.</div>
+      <div class="section-sub">Open questions for the group. Tap your pick${SYNC.on ? " — everyone's votes tally live." : SYNC.configured ? " — syncing…" : ". <b>Local until the backend is connected.</b>"} Anyone can add one below.</div>
       ${!state.me ? `<div class="card" style="border-color:var(--sakura-deep);background:#fdf3f5"><b>Tag yourself first</b> — tap "Who are you?" at the top so your votes are yours. <button class="btn primary" id="decWho" style="margin-top:10px;width:100%">Set who I am</button></div>` : ""}
       ${decisions.map((d) => {
         const mine = myVote("decision", d.id);
@@ -734,7 +742,7 @@
     ];
     s.innerHTML = `
       <div class="section-title">Ideas board</div>
-      <div class="section-sub">Things nobody's committed to yet. 👍 what you'd want to do, and post your own. ${SYNC.on ? "Everyone sees the group's picks." : "<b>Local until the backend is connected.</b>"}</div>
+      <div class="section-sub">Things nobody's committed to yet. 👍 what you'd want to do, and post your own. ${SYNC.on ? "Everyone sees the group's picks." : SYNC.configured ? "Syncing…" : "<b>Local until the backend is connected.</b>"}</div>
       ${list.map((i) => {
         const voters = tally("idea", i.id)["up"] || [];
         const on = myVote("idea", i.id) === "up";
