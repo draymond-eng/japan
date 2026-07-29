@@ -67,6 +67,34 @@
     catch (e) { console.warn("removeIdea", e); return false; }
   }
 
+  /* ---- Decisions (group-submitted polls) ---------------------------------- */
+  async function fetchDecisions() {
+    try { const { data, error } = await client.from("decisions").select("*").order("created_at", { ascending: true }); if (error) throw error; return data || []; }
+    catch (e) { console.warn("fetchDecisions", e); return []; }
+  }
+  async function addDecision(row) {
+    try { const { data, error } = await client.from("decisions").insert(row).select().single(); if (error) throw error; return data; }
+    catch (e) { console.warn("addDecision", e); return null; }
+  }
+  async function removeDecision(id) {
+    try { await client.from("decisions").delete().eq("id", id); return true; }
+    catch (e) { console.warn("removeDecision", e); return false; }
+  }
+
+  /* ---- Proposed stay options (group-submitted hotels) --------------------- */
+  async function fetchStayOptions() {
+    try { const { data, error } = await client.from("stay_options").select("*").order("created_at", { ascending: true }); if (error) throw error; return data || []; }
+    catch (e) { console.warn("fetchStayOptions", e); return []; }
+  }
+  async function addStayOption(row) {
+    try { const { data, error } = await client.from("stay_options").insert(row).select().single(); if (error) throw error; return data; }
+    catch (e) { console.warn("addStayOption", e); return null; }
+  }
+  async function removeStayOption(id) {
+    try { await client.from("stay_options").delete().eq("id", id); return true; }
+    catch (e) { console.warn("removeStayOption", e); return false; }
+  }
+
   /* ---- Photos (Storage + table) ------------------------------------------ */
   async function fetchPhotos() {
     try { const { data, error } = await client.from("photos").select("*").order("created_at", { ascending: false }); if (error) throw error; return data || []; }
@@ -101,6 +129,8 @@
         .on("postgres_changes", { event: "*", schema: "public", table: "votes" }, () => onChange("votes"))
         .on("postgres_changes", { event: "*", schema: "public", table: "expenses" }, () => onChange("expenses"))
         .on("postgres_changes", { event: "*", schema: "public", table: "ideas" }, () => onChange("ideas"))
+        .on("postgres_changes", { event: "*", schema: "public", table: "decisions" }, () => onChange("decisions"))
+        .on("postgres_changes", { event: "*", schema: "public", table: "stay_options" }, () => onChange("stay_options"))
         .on("postgres_changes", { event: "*", schema: "public", table: "photos" }, () => onChange("photos"))
         .subscribe();
     } catch (e) { console.warn("subscribe", e); return null; }
@@ -111,6 +141,8 @@
     fetchVotes, castVote,
     fetchExpenses, addExpense, removeExpense,
     fetchIdeas, addIdea, removeIdea,
+    fetchDecisions, addDecision, removeDecision,
+    fetchStayOptions, addStayOption, removeStayOption,
     fetchPhotos, uploadPhoto, removePhoto,
     subscribe,
   };

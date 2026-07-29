@@ -34,6 +34,8 @@
     // Shared (populated from the backend when SYNC.on):
     allVotes: [],       // [{kind, topic, choice, voter}]
     postedIdeas: LS.get("postedIdeas", []), // group-submitted ideas (local until synced)
+    postedDecisions: LS.get("postedDecisions", []), // group-submitted decisions
+    proposedStays: LS.get("proposedStays", []), // group-proposed hotels {id,city,name,tag,note,author}
     photos: [],         // uploaded trip photos
   };
   const save = () => {
@@ -61,6 +63,8 @@
         state.expenses = rows.map((r) => ({ id: r.id, label: r.label, amount: Number(r.amount), currency: r.currency, paidBy: r.paid_by, splitAmong: r.split_among || [] }));
       }));
       if (table === "all" || table === "ideas")    jobs.push(Backend.fetchIdeas().then((i) => state.postedIdeas = i));
+      if (table === "all" || table === "decisions")jobs.push(Backend.fetchDecisions().then((d) => state.postedDecisions = d));
+      if (table === "all" || table === "stay_options") jobs.push(Backend.fetchStayOptions().then((s) => state.proposedStays = s));
       if (table === "all" || table === "photos")   jobs.push(Backend.fetchPhotos().then((p) => state.photos = p));
       await Promise.all(jobs);
     },
@@ -301,9 +305,11 @@
   function collectPins() {
     const pins = [];
     T.stays.forEach((st) => {
-      // Pin the voted option for this city, else the suggested/first one.
-      const opt = st.options.find((o) => o.id === state.stayVotes[st.city]) || st.options.find((o) => o.recommended) || st.options[0];
-      if (opt && opt.lat) pins.push({ lat: opt.lat, lng: opt.lng, city: st.city, type: "stay", title: opt.name, note: st.label + " · " + opt.tag });
+      // Pin the group's chosen option for this city, else the suggested/first one.
+      const chosenId = myVote("stay", st.city);
+      const merged = [...st.options, ...state.proposedStays.filter((p) => p.city === st.city)];
+      const opt = merged.find((o) => o.id === chosenId) || st.options.find((o) => o.recommended) || st.options[0];
+      if (opt && opt.lat) pins.push({ lat: opt.lat, lng: opt.lng, city: st.city, type: "stay", title: opt.name, note: st.label + " · " + (opt.tag || "") });
     });
     T.days.forEach((d) => d.items.forEach((it) => {
       if (it.lat) pins.push({ lat: it.lat, lng: it.lng, city: d.city, type: it.type, title: it.title, note: it.note });
@@ -408,32 +414,77 @@
     const s = $("#screen-stays");
     s.innerHTML = `
       <div class="section-title">Where we sleep</div>
-      <div class="section-sub">Nothing's booked yet — here are options for each stop. Tap the one you'd vote for. ${SYNC.on ? "" : "<b>(Saved on your phone for now — shared tallies come with the backend.)</b>"}</div>
+      <div class="section-sub">Nothing's booked — vote on a place for each stop, or propose your own. ${SYNC.on ? "Votes tally live." : "<b>Local until the backend is connected.</b>"}</div>
       ${T.stays.map((st) => {
-        const mine = state.stayVotes[st.city];
-        return `<div style="margin-bottom:24px">
+        const mine = myVote("stay", st.city);
+        const counts = tally("stay", st.city);
+        const options = [
+          ...st.options.map((o) => ({ ...o, posted: false })),
+          ...state.proposedStays.filter((p) => p.city === st.city).map((p) => ({ id: p.id, name: p.name, tag: p.tag || "Proposed", note: p.note || "", lat: p.lat, lng: p.lng, link: p.link, author: p.author, posted: true })),
+        ];
+        return `<div style="margin-bottom:26px">
           <div style="display:flex;align-items:center;gap:9px;margin:0 2px 3px">
             <span class="pill ${st.city}">${esc(st.label)}</span>
             <span style="font-size:11.5px;color:var(--ink-3);font-weight:800;letter-spacing:.3px">${esc(st.nights)}</span>
           </div>
           <div class="section-sub" style="margin:4px 2px 12px">${esc(st.note)}</div>
-          ${st.options.map((o) => `<button class="stay-opt ${mine === o.id ? "sel" : ""}" data-stay="${st.city}" data-opt="${o.id}">
-            <div class="stay-opt-main">
-              <div class="stay-opt-name">${esc(o.name)}${o.recommended ? '<span class="rec">Suggested</span>' : ""}</div>
-              <div class="stay-opt-tag">${esc(o.tag)}</div>
-              <div class="stay-opt-note">${esc(o.note)}</div>
-              <a class="tl-map" href="https://www.google.com/maps/search/?api=1&query=${o.lat},${o.lng}" target="_blank" rel="noopener" onclick="event.stopPropagation()">📍 Map</a>
-            </div>
-            <div class="stay-check">${mine === o.id ? "◉" : "◯"}</div>
-          </button>`).join("")}
+          ${options.map((o) => {
+            const voters = counts[o.id] || [];
+            const sel = mine === o.id;
+            return `<button class="stay-opt ${sel ? "sel" : ""}" data-stay="${st.city}" data-opt="${o.id}">
+              <div class="stay-opt-main">
+                <div class="stay-opt-name">${esc(o.name)}${o.recommended ? '<span class="rec">Suggested</span>' : ""}${o.posted ? '<span class="rec" style="color:var(--ai-2);border-color:var(--ai-2)">Proposed</span>' : ""}</div>
+                <div class="stay-opt-tag">${esc(o.tag)}</div>
+                ${o.note ? `<div class="stay-opt-note">${esc(o.note)}</div>` : ""}
+                <div style="display:flex;align-items:center;gap:14px;margin-top:8px;flex-wrap:wrap">
+                  ${o.lat ? `<a class="tl-map" href="https://www.google.com/maps/search/?api=1&query=${o.lat},${o.lng}" target="_blank" rel="noopener" onclick="event.stopPropagation()">📍 Map</a>` : ""}
+                  ${o.link ? `<a class="tl-map" href="${esc(o.link)}" target="_blank" rel="noopener" onclick="event.stopPropagation()">🔗 Link</a>` : ""}
+                  ${o.posted && o.author === state.me ? `<span class="tl-map" style="color:var(--vermilion)" data-staydel="${o.id}">Remove</span>` : ""}
+                </div>
+                ${voters.length ? `<div class="tally" style="margin-top:8px">${voterChips(voters)}<span class="tally-n">${voters.length} vote${voters.length === 1 ? "" : "s"}</span></div>` : ""}
+              </div>
+              <div class="stay-check">${sel ? "◉" : "◯"}</div>
+            </button>`;
+          }).join("")}
+          <button class="btn ghost" data-proposecity="${st.city}" style="width:100%;margin-top:2px">+ Propose a place in ${esc(st.label)}</button>
         </div>`;
-      }).join("")}`;
-    s.querySelectorAll("[data-stay]").forEach((b) => b.addEventListener("click", () => {
-      const city = b.dataset.stay;
-      state.stayVotes[city] = state.stayVotes[city] === b.dataset.opt ? undefined : b.dataset.opt;
-      save(); renderStays();
-      if (map && markerLayer) drawPins();
-    }));
+      }).join("")}
+      <div id="proposeForm"></div>`;
+    s.querySelectorAll("[data-opt]").forEach((b) => b.addEventListener("click", () => setVote("stay", b.dataset.stay, b.dataset.opt)));
+    s.querySelectorAll("[data-staydel]").forEach((b) => b.addEventListener("click", (e) => { e.stopPropagation(); removeProposedStay(b.dataset.staydel); }));
+    s.querySelectorAll("[data-proposecity]").forEach((b) => b.addEventListener("click", () => openProposeStay(b.dataset.proposecity)));
+  }
+  function openProposeStay(city) {
+    const st = T.stays.find((x) => x.city === city);
+    $("#proposeForm").innerHTML = `<div class="card" style="border-color:var(--ai)">
+      <h3>Propose a place in ${esc(st.label)}</h3>
+      <div class="expense-add">
+        <input id="psName" placeholder="Hotel / place name" />
+        <input id="psTag" placeholder="Vibe (e.g. Boutique hotel)" />
+        <input id="psNote" placeholder="Why it's good (optional)" />
+        <input id="psLink" placeholder="Link (optional)" />
+        <button class="btn primary" id="psAdd">Add to ${esc(st.label)}</button>
+      </div>
+    </div>`;
+    $("#psAdd").addEventListener("click", () => addProposedStay(city));
+    $("#proposeForm").scrollIntoView({ behavior: "smooth", block: "center" });
+  }
+  async function addProposedStay(city) {
+    const name = $("#psName").value.trim(); if (!name) { alert("Add a place name."); return; }
+    const tag = $("#psTag").value.trim() || "Proposed", note = $("#psNote").value.trim(), link = $("#psLink").value.trim(), author = state.me || "";
+    if (SYNC.on) {
+      const row = await Backend.addStayOption({ city, name, tag, note, link, author });
+      if (row) state.proposedStays.push(row);
+    } else {
+      state.proposedStays.push({ id: "ls" + Date.now(), city, name, tag, note, link, author });
+      LS.set("proposedStays", state.proposedStays);
+    }
+    renderStays();
+  }
+  async function removeProposedStay(id) {
+    state.proposedStays = state.proposedStays.filter((x) => String(x.id) !== String(id));
+    if (SYNC.on) await Backend.removeStayOption(id); else LS.set("proposedStays", state.proposedStays);
+    renderStays();
   }
 
   /* =======================================================================
@@ -506,8 +557,8 @@
         <label class="r-sub" style="font-weight:700">Paid by</label>
         <select id="exPaid">${T.travelers.map((t) => `<option value="${t.id}" ${state.me === t.id ? "selected" : ""}>${esc(t.name)}</option>`).join("")}</select>
         <label class="r-sub" style="font-weight:700">Split among</label>
-        <div id="exSplit" style="display:flex;flex-wrap:wrap;gap:6px">
-          ${T.travelers.map((t) => `<label class="chip" style="cursor:pointer"><input type="checkbox" value="${t.id}" checked style="margin-right:6px;vertical-align:middle">${esc(t.name.split(" ")[0])}</label>`).join("")}
+        <div id="exSplit">
+          ${T.travelers.map((t) => `<label class="split-chip"><input type="checkbox" value="${t.id}" checked><span class="avatar" style="${avatarBg(t)}">${avatarTxt(t)}</span>${esc(t.name.split(" ")[0])}</label>`).join("")}
         </div>
         <button class="btn primary" id="exAdd">Add expense</button>
       </div>
@@ -594,19 +645,24 @@
      ==================================================================== */
   function renderDecisions() {
     const s = $("#screen-decisions");
+    const decisions = [
+      ...T.decisions.map((d) => ({ ...d, posted: false })),
+      ...state.postedDecisions.map((d) => ({ id: d.id, title: d.title, note: d.note || "", options: d.options || [], status: d.status || "open", author: d.author, posted: true })),
+    ];
     s.innerHTML = `
       <div class="section-title">Decisions</div>
-      <div class="section-sub">Open questions for the group. Tap your pick — ${SYNC.on ? "everyone's votes tally live below each option." : "<b>votes save on this phone until the backend is connected.</b>"}</div>
+      <div class="section-sub">Open questions for the group. Tap your pick${SYNC.on ? " — everyone's votes tally live." : ". <b>Local until the backend is connected.</b>"} Anyone can add one below.</div>
       ${!state.me ? `<div class="card" style="border-color:var(--sakura-deep);background:#fdf3f5"><b>Tag yourself first</b> — tap "Who are you?" at the top so your votes are yours. <button class="btn primary" id="decWho" style="margin-top:10px;width:100%">Set who I am</button></div>` : ""}
-      ${T.decisions.map((d) => {
+      ${decisions.map((d) => {
         const mine = myVote("decision", d.id);
         const counts = tally("decision", d.id);
+        const author = d.author ? esc((byId(d.author) || {}).name?.split(" ")[0] || "") : "";
         return `<div class="card">
           <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap">
             <h3 style="margin:0">${esc(d.title)}</h3>
-            <span class="pill ${d.status === "decided" ? "tokyo" : d.status === "leaning" ? "osaka" : "any"}">${d.status}</span>
+            <span class="pill ${d.status === "decided" ? "tokyo" : d.status === "leaning" ? "osaka" : "any"}">${esc(d.status)}</span>
           </div>
-          <p class="section-sub" style="margin:8px 0 12px">${esc(d.note)}</p>
+          ${d.note ? `<p class="section-sub" style="margin:8px 0 12px">${esc(d.note)}</p>` : `<div style="height:8px"></div>`}
           <div style="display:grid;gap:8px">
             ${d.options.map((o) => {
               const voters = counts[o.id] || [];
@@ -620,10 +676,51 @@
               </button>`;
             }).join("")}
           </div>
+          ${d.posted ? `<div style="display:flex;align-items:center;justify-content:space-between;margin-top:10px">
+            ${author ? `<span class="r-sub" style="font-size:11px">added by ${author}</span>` : "<span></span>"}
+            ${d.author === state.me ? `<button class="btn danger" data-decdel="${d.id}">Remove</button>` : ""}
+          </div>` : ""}
         </div>`;
-      }).join("")}`;
+      }).join("")}
+
+      <div class="card" style="margin-top:16px">
+        <h3>Add a decision</h3>
+        <p class="section-sub" style="margin:4px 0 12px">Pose a question for the group with 2–4 options.</p>
+        <div class="expense-add">
+          <input id="decTitle" placeholder="The question (e.g. Which day for Disney?)" />
+          <input id="decNote" placeholder="Context (optional)" />
+          <input id="decO0" placeholder="Option 1" />
+          <input id="decO1" placeholder="Option 2" />
+          <input id="decO2" placeholder="Option 3 (optional)" />
+          <input id="decO3" placeholder="Option 4 (optional)" />
+          <button class="btn primary" id="decAdd">Post decision</button>
+        </div>
+      </div>`;
     s.querySelectorAll("[data-dec]").forEach((b) => b.addEventListener("click", () => setVote("decision", b.dataset.dec, b.dataset.opt)));
+    s.querySelectorAll("[data-decdel]").forEach((b) => b.addEventListener("click", () => removePostedDecision(b.dataset.decdel)));
+    $("#decAdd").addEventListener("click", addDecision);
     const dw = $("#decWho"); if (dw) dw.addEventListener("click", openWho);
+  }
+  async function addDecision() {
+    const title = $("#decTitle").value.trim();
+    const opts = [0, 1, 2, 3].map((i) => $("#decO" + i).value.trim()).filter(Boolean);
+    if (!title) { alert("Add the question."); return; }
+    if (opts.length < 2) { alert("Add at least two options."); return; }
+    const note = $("#decNote").value.trim(), author = state.me || "";
+    const options = opts.map((label, i) => ({ id: "opt" + i, label, note: "" }));
+    if (SYNC.on) {
+      const row = await Backend.addDecision({ title, note, options, status: "open", author });
+      if (row) state.postedDecisions.push(row);
+    } else {
+      state.postedDecisions.push({ id: "ld" + Date.now(), title, note, options, status: "open", author });
+      LS.set("postedDecisions", state.postedDecisions);
+    }
+    renderDecisions();
+  }
+  async function removePostedDecision(id) {
+    state.postedDecisions = state.postedDecisions.filter((x) => String(x.id) !== String(id));
+    if (SYNC.on) await Backend.removeDecision(id); else LS.set("postedDecisions", state.postedDecisions);
+    renderDecisions();
   }
 
   /* =======================================================================

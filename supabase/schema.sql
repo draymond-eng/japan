@@ -71,6 +71,41 @@ alter publication supabase_realtime add table public.expenses;
 alter publication supabase_realtime add table public.ideas;
 alter publication supabase_realtime add table public.photos;
 
+-- ---- Group-submitted decisions & stay options ------------------------------
+create table if not exists public.decisions (
+  id         uuid primary key default gen_random_uuid(),
+  title      text not null,
+  note       text default '',
+  options    jsonb not null default '[]',  -- [{id, label, note}]
+  status     text default 'open',
+  author     text default '',
+  created_at timestamptz default now()
+);
+
+create table if not exists public.stay_options (
+  id         uuid primary key default gen_random_uuid(),
+  city       text not null,                -- tokyo | hakone | kyoto
+  name       text not null,
+  tag        text default '',
+  note       text default '',
+  link       text default '',
+  lat        double precision,
+  lng        double precision,
+  author     text default '',
+  created_at timestamptz default now()
+);
+
+alter table public.decisions    enable row level security;
+alter table public.stay_options enable row level security;
+
+drop policy if exists "anon decisions"    on public.decisions;
+drop policy if exists "anon stay_options" on public.stay_options;
+create policy "anon decisions"    on public.decisions    for all using (true) with check (true);
+create policy "anon stay_options" on public.stay_options for all using (true) with check (true);
+
+alter publication supabase_realtime add table public.decisions;
+alter publication supabase_realtime add table public.stay_options;
+
 -- ---- Storage bucket for photos ---------------------------------------------
 insert into storage.buckets (id, name, public)
 values ('trip-photos', 'trip-photos', true)
