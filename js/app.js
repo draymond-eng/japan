@@ -1107,8 +1107,30 @@
   if (!state.me) setTimeout(openWho, 600);
   Sync.init(); // connects to the backend if configured; otherwise stays local
 
-  // PWA service worker
+  // PWA service worker — AUTO-UPDATE so new builds appear on their own,
+  // with no manual cache clearing or re-adding the app.
   if ("serviceWorker" in navigator) {
-    window.addEventListener("load", () => navigator.serviceWorker.register("sw.js").catch(() => {}));
+    let refreshing = false;
+    navigator.serviceWorker.addEventListener("controllerchange", () => {
+      if (refreshing) return;
+      refreshing = true;
+      location.reload(); // a fresh worker took over → reload into the new build
+    });
+    window.addEventListener("load", async () => {
+      try {
+        const reg = await navigator.serviceWorker.register("sw.js");
+        reg.update();
+        if (reg.waiting) reg.waiting.postMessage("skip-waiting");
+        reg.addEventListener("updatefound", () => {
+          const nw = reg.installing;
+          if (nw) nw.addEventListener("statechange", () => {
+            if (nw.state === "installed" && navigator.serviceWorker.controller) nw.postMessage("skip-waiting");
+          });
+        });
+        // Check for a new deploy periodically and whenever the app regains focus.
+        setInterval(() => reg.update(), 30 * 1000);
+        document.addEventListener("visibilitychange", () => { if (!document.hidden) reg.update(); });
+      } catch (e) {}
+    });
   }
 })();

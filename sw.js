@@ -1,6 +1,6 @@
 /* Japan 2027 — service worker. App-shell caching so the app opens offline.
    Bump CACHE when you change core files. */
-const CACHE = "jp2027-v11";
+const CACHE = "jp2027-v12";
 const CORE = [
   "./",
   "./index.html",
@@ -21,6 +21,9 @@ const CORE = [
 self.addEventListener("install", (e) => {
   e.waitUntil(caches.open(CACHE).then((c) => c.addAll(CORE)).then(() => self.skipWaiting()));
 });
+
+// Let the page trigger immediate activation of a freshly-installed worker.
+self.addEventListener("message", (e) => { if (e.data === "skip-waiting") self.skipWaiting(); });
 
 self.addEventListener("activate", (e) => {
   e.waitUntil(
