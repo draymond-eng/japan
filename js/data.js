@@ -117,6 +117,9 @@ const TRIP = {
     { id: "IAD-HND", label: "Washington → Tokyo", from: "IAD", to: "HND", who: "DC 2 (IAD has the Haneda nonstop)" },
   ],
 
+  /* ---- Music: the collaborative Spotify playlist (embedded in the app) ----- */
+  music: { spotifyUrl: "https://open.spotify.com/playlist/2WO6h42bjCGOKaJvHY9GZ1" },
+
   /* ---- The day-by-day baseline. type: travel|sight|food|activity|rest|meet - */
   days: [
     {

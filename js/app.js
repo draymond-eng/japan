@@ -1308,6 +1308,33 @@
   }
 
   /* =======================================================================
+     MUSIC — embedded collaborative Spotify playlist
+     ==================================================================== */
+  function renderMusic() {
+    const s = $("#screen-music");
+    const url = (T.music && T.music.spotifyUrl) || "";
+    const m = url.match(/playlist\/([A-Za-z0-9]+)/);
+    const id = m ? m[1] : "";
+    s.innerHTML = `
+      <div class="section-title">Trip playlist</div>
+      <div class="section-sub">Our collaborative Spotify playlist. Add whatever gets you hyped for Japan — everyone can.</div>
+      ${id ? `
+        <div class="card" style="padding:10px">
+          <iframe title="Spotify playlist" style="border-radius:12px;display:block" src="https://open.spotify.com/embed/playlist/${id}?utm_source=generator&theme=0" width="100%" height="440" frameborder="0" allow="autoplay; clipboard-write; encrypted-media; fullscreen; picture-in-picture" loading="lazy"></iframe>
+        </div>
+        <a class="btn primary" href="${esc(url)}" target="_blank" rel="noopener" style="display:block;text-align:center;text-decoration:none;width:100%">➕ Add songs in Spotify</a>
+        <div class="card" style="margin-top:14px">
+          <h3>🎧 How to add</h3>
+          <ol class="r-sub" style="margin:8px 0 0;padding-left:20px;line-height:2">
+            <li>Tap <b>Add songs in Spotify</b> above — it opens the playlist.</li>
+            <li>Hit <b>＋ / Add to this playlist</b> and search anything.</li>
+            <li>Tap <b>Follow</b> so it lives in your library.</li>
+          </ol>
+          <p class="r-sub" style="margin:10px 0 0">Every add shows up right here for the whole crew. 🎌</p>
+        </div>` : `<div class="card"><h3>No playlist linked yet</h3><p class="r-sub">Add a Spotify playlist URL to <code>music.spotifyUrl</code> in data.js.</p></div>`}`;
+  }
+
+  /* =======================================================================
      GUIDE + phrases
      ==================================================================== */
   function renderGuide() {
@@ -1358,7 +1385,7 @@
     home: renderHome, itinerary: renderItinerary, crew: renderCrew, stays: renderStays,
     flights: renderFlights, budget: renderBudget, packing: renderPacking,
     decisions: renderDecisions, booking: renderBooking, fares: renderFares,
-    vault: renderVault, notes: renderNotes, translate: renderTranslate,
+    vault: renderVault, notes: renderNotes, translate: renderTranslate, music: renderMusic,
     ideas: renderIdeas, photos: renderPhotos, guide: renderGuide,
   };
   function renderCurrent() {

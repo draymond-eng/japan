@@ -66,9 +66,7 @@ button { font-family: inherit; cursor: pointer; color: inherit; }
   position: sticky; top: 0; z-index: 40;
   display: flex; align-items: center; gap: 10px;
   padding: calc(13px + env(safe-area-inset-top, 0px)) 18px 13px;
-  background: linear-gradient(180deg, rgba(243,237,226,0.97), rgba(243,237,226,0.80));
-  backdrop-filter: saturate(150%) blur(12px);
-  -webkit-backdrop-filter: saturate(150%) blur(12px);
+  background: var(--paper); /* opaque — avoids iOS sticky/backdrop-filter paint glitch */
   border-bottom: 1px solid var(--line);
 }
 .topbar .brand { display: flex; align-items: center; gap: 11px; }
@@ -360,8 +358,8 @@ button { font-family: inherit; cursor: pointer; color: inherit; }
   position: fixed; bottom: 0; left: 50%; transform: translateX(-50%);
   width: 100%; max-width: var(--maxw); z-index: 50;
   display: flex; justify-content: space-around; align-items: stretch;
-  background: rgba(255,253,248,0.90); backdrop-filter: saturate(160%) blur(16px);
-  -webkit-backdrop-filter: saturate(160%) blur(16px);
+  background: #fffdf8; /* opaque — avoids iOS backdrop-filter detach glitch on scroll */
+  box-shadow: 0 -1px 0 var(--line), 0 -6px 20px -12px rgba(25,26,30,.2);
   border-top: 1px solid var(--line); padding-bottom: var(--safe-b);
 }
 .tab { position: relative; flex: 1; border: none; background: none; padding: 10px 4px; display: flex; flex-direction: column;
