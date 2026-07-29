@@ -330,6 +330,12 @@ button { font-family: inherit; cursor: pointer; color: inherit; }
 .tally .avatar.vchip:not(:first-child) { margin-left: -6px; }
 .tally-n { font-size: 11px; font-weight: 800; color: var(--matcha); margin-left: 6px; letter-spacing: .3px; }
 
+/* ---- Itinerary RSVP ------------------------------------------------------ */
+.rsvp { display: flex; align-items: center; gap: 8px; margin-top: 8px; flex-wrap: wrap; }
+.rsvp-btn { border: 1px solid var(--line); background: #fffdfa; color: var(--ai); border-radius: 999px;
+  padding: 5px 12px; font-size: 12px; font-weight: 800; letter-spacing: .2px; }
+.rsvp-btn.on { background: var(--matcha); border-color: var(--matcha); color: #fff; }
+
 /* ---- Booking timeline ---------------------------------------------------- */
 .book-check { flex: none; width: 28px; height: 28px; border-radius: 8px; border: 2px solid var(--line);
   background: #fffdfa; color: #fff; font-size: 15px; font-weight: 800; display: grid; place-items: center;

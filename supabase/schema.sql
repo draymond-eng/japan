@@ -138,6 +138,36 @@ alter publication supabase_realtime add table public.stay_options;
 alter publication supabase_realtime add table public.flights;
 alter publication supabase_realtime add table public.fares;
 
+-- ---- Notes / omiyage + confirmations vault ---------------------------------
+create table if not exists public.notes (
+  id         uuid primary key default gen_random_uuid(),
+  list       text default 'note',          -- 'note' | 'omiyage'
+  text       text not null,
+  done       boolean default false,
+  author     text default '',
+  created_at timestamptz default now()
+);
+
+create table if not exists public.confirmations (
+  id              uuid primary key default gen_random_uuid(),
+  category        text default 'Other',
+  label           text not null,
+  confirmation_no text default '',
+  url             text default '',
+  path            text default '',
+  author          text default '',
+  created_at      timestamptz default now()
+);
+
+alter table public.notes         enable row level security;
+alter table public.confirmations enable row level security;
+drop policy if exists "anon notes"         on public.notes;
+drop policy if exists "anon confirmations" on public.confirmations;
+create policy "anon notes"         on public.notes         for all using (true) with check (true);
+create policy "anon confirmations" on public.confirmations for all using (true) with check (true);
+alter publication supabase_realtime add table public.notes;
+alter publication supabase_realtime add table public.confirmations;
+
 -- ---- Storage bucket for photos ---------------------------------------------
 insert into storage.buckets (id, name, public)
 values ('trip-photos', 'trip-photos', true)

@@ -95,6 +95,49 @@
     catch (e) { console.warn("removeFare", e); return false; }
   }
 
+  /* ---- Notes / omiyage (shared running lists) ----------------------------- */
+  async function fetchNotes() {
+    try { const { data, error } = await client.from("notes").select("*").order("created_at", { ascending: true }); if (error) throw error; return data || []; }
+    catch (e) { console.warn("fetchNotes", e); return []; }
+  }
+  async function addNote(row) {
+    try { const { data, error } = await client.from("notes").insert(row).select().single(); if (error) throw error; return data; }
+    catch (e) { console.warn("addNote", e); return null; }
+  }
+  async function updateNote(id, patch) {
+    try { await client.from("notes").update(patch).eq("id", id); return true; }
+    catch (e) { console.warn("updateNote", e); return false; }
+  }
+  async function removeNote(id) {
+    try { await client.from("notes").delete().eq("id", id); return true; }
+    catch (e) { console.warn("removeNote", e); return false; }
+  }
+
+  /* ---- Confirmations vault (files + numbers) ------------------------------ */
+  async function fetchConfirmations() {
+    try { const { data, error } = await client.from("confirmations").select("*").order("created_at", { ascending: false }); if (error) throw error; return data || []; }
+    catch (e) { console.warn("fetchConfirmations", e); return []; }
+  }
+  async function addConfirmation(row, file) {
+    try {
+      let path = "", url = "";
+      if (file) {
+        const ext = (file.name.split(".").pop() || "pdf").toLowerCase();
+        path = `docs/${Date.now()}-${Math.random().toString(36).slice(2, 8)}.${ext}`;
+        const up = await client.storage.from(BUCKET).upload(path, file, { cacheControl: "3600", upsert: false });
+        if (up.error) throw up.error;
+        url = client.storage.from(BUCKET).getPublicUrl(path).data.publicUrl;
+      }
+      const { data, error } = await client.from("confirmations").insert({ ...row, path, url }).select().single();
+      if (error) throw error;
+      return data;
+    } catch (e) { console.warn("addConfirmation", e); return null; }
+  }
+  async function removeConfirmation(row) {
+    try { if (row.path) await client.storage.from(BUCKET).remove([row.path]); await client.from("confirmations").delete().eq("id", row.id); return true; }
+    catch (e) { console.warn("removeConfirmation", e); return false; }
+  }
+
   /* ---- Flights (one row per traveler + direction) ------------------------- */
   async function fetchFlights() {
     try { const { data, error } = await client.from("flights").select("*"); if (error) throw error; return data || []; }
@@ -161,6 +204,8 @@
         .on("postgres_changes", { event: "*", schema: "public", table: "stay_options" }, () => onChange("stay_options"))
         .on("postgres_changes", { event: "*", schema: "public", table: "flights" }, () => onChange("flights"))
         .on("postgres_changes", { event: "*", schema: "public", table: "fares" }, () => onChange("fares"))
+        .on("postgres_changes", { event: "*", schema: "public", table: "notes" }, () => onChange("notes"))
+        .on("postgres_changes", { event: "*", schema: "public", table: "confirmations" }, () => onChange("confirmations"))
         .on("postgres_changes", { event: "*", schema: "public", table: "photos" }, () => onChange("photos"))
         .subscribe();
     } catch (e) { console.warn("subscribe", e); return null; }
@@ -175,6 +220,8 @@
     fetchStayOptions, addStayOption, removeStayOption,
     fetchFlights, upsertFlight, removeFlight,
     fetchFares, addFare, removeFare,
+    fetchNotes, addNote, updateNote, removeNote,
+    fetchConfirmations, addConfirmation, removeConfirmation,
     fetchPhotos, uploadPhoto, removePhoto,
     subscribe,
   };

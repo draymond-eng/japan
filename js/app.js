@@ -30,6 +30,7 @@
     stayVotes: LS.get("stayVotes", {}), // {city: optionId}
     ideas: LS.get("ideas", {}),         // {ideaId: true}
     bookingLocal: LS.get("bookingLocal", {}), // {bookingId: true} (local fallback)
+    rsvpLocal: LS.get("rsvpLocal", {}), // {itemId: true} (local fallback)
     expenses: LS.get("expenses", []),
     cityFilter: "all",
     // Shared (populated from the backend when SYNC.on):
@@ -39,6 +40,11 @@
     proposedStays: LS.get("proposedStays", []), // group-proposed hotels {id,city,name,tag,note,author}
     flights: LS.get("flightsLocal", []), // {traveler, dir, airline, flight_no, airport, date, time, note}
     fares: LS.get("faresLocal", []),     // {id, route, price, currency, note, author, created_at}
+    notes: LS.get("notesLocal", []),     // {id, list, text, done, author}
+    confirmations: [],  // {id, category, label, confirmation_no, url, path, author}
+    weather: [],        // live current conditions per city (client-only)
+    liveRate: null,     // fetched JPY per USD
+    rateOverride: LS.get("rateOverride", null), // manual JPY per USD
     photos: [],         // uploaded trip photos
   };
   const save = () => {
@@ -78,6 +84,8 @@
       if (table === "all" || table === "stay_options") jobs.push(Backend.fetchStayOptions().then((s) => state.proposedStays = s));
       if (table === "all" || table === "flights")  jobs.push(Backend.fetchFlights().then((f) => state.flights = f));
       if (table === "all" || table === "fares")    jobs.push(Backend.fetchFares().then((f) => state.fares = f));
+      if (table === "all" || table === "notes")    jobs.push(Backend.fetchNotes().then((n) => state.notes = n));
+      if (table === "all" || table === "confirmations") jobs.push(Backend.fetchConfirmations().then((c) => state.confirmations = c));
       if (table === "all" || table === "photos")   jobs.push(Backend.fetchPhotos().then((p) => state.photos = p));
       await Promise.all(jobs);
     },
@@ -94,6 +102,7 @@
     if (kind === "stay") return state.stayVotes[topic] || null;
     if (kind === "idea") return state.ideas[topic] ? "up" : null;
     if (kind === "booking") return state.bookingLocal[topic] ? "done" : null;
+    if (kind === "rsvp") return state.rsvpLocal[topic] ? "in" : null;
     return null;
   }
   function tally(kind, topic) {
@@ -121,6 +130,7 @@
       else if (kind === "stay") state.stayVotes[topic] = next || undefined;
       else if (kind === "idea") { if (next) state.ideas[topic] = true; else delete state.ideas[topic]; }
       else if (kind === "booking") { if (next) state.bookingLocal[topic] = true; else delete state.bookingLocal[topic]; LS.set("bookingLocal", state.bookingLocal); }
+      else if (kind === "rsvp") { if (next) state.rsvpLocal[topic] = true; else delete state.rsvpLocal[topic]; LS.set("rsvpLocal", state.rsvpLocal); }
       save(); renderCurrent();
       if (map && markerLayer && kind === "stay") drawPins();
     }
@@ -132,6 +142,34 @@
       return `<span class="avatar vchip" style="${avatarBg(t)}" title="${esc(t.name)}">${avatarTxt(t)}</span>`;
     }).join("");
   }
+
+  /* ---- Live extras: weather + currency (free, keyless APIs) --------------- */
+  const WX = { 0: "☀️", 1: "🌤️", 2: "⛅", 3: "☁️", 45: "🌫️", 48: "🌫️", 51: "🌦️", 53: "🌦️", 55: "🌧️", 61: "🌧️", 63: "🌧️", 65: "🌧️", 71: "🌨️", 73: "🌨️", 75: "❄️", 80: "🌦️", 81: "🌧️", 82: "⛈️", 95: "⛈️", 96: "⛈️", 99: "⛈️" };
+  const wxEmoji = (c) => WX[c] || "🌡️";
+  async function loadWeather() {
+    try {
+      const lat = T.cities.map((c) => c.lat).join(",");
+      const lng = T.cities.map((c) => c.lng).join(",");
+      const url = `https://api.open-meteo.com/v1/forecast?latitude=${lat}&longitude=${lng}&current=temperature_2m,weather_code&temperature_unit=fahrenheit&timezone=Asia%2FTokyo`;
+      const res = await fetch(url); if (!res.ok) return;
+      const data = await res.json();
+      const arr = Array.isArray(data) ? data : [data];
+      state.weather = T.cities.map((c, i) => ({ city: c.id, name: c.name, emoji: c.emoji,
+        temp: Math.round(arr[i]?.current?.temperature_2m), wx: wxEmoji(arr[i]?.current?.weather_code) }));
+      if ($("#screen-home").classList.contains("active")) renderHome();
+    } catch (e) { /* offline — skip */ }
+  }
+  async function loadRate() {
+    try {
+      const res = await fetch("https://open.er-api.com/v6/latest/USD"); if (!res.ok) return;
+      const data = await res.json();
+      if (data && data.rates && data.rates.JPY) {
+        state.liveRate = data.rates.JPY;
+        if ($("#screen-budget").classList.contains("active")) renderBudget();
+      }
+    } catch (e) { /* offline — skip */ }
+  }
+  const effectiveRate = () => Number(state.rateOverride) || Number(state.liveRate) || T.meta.currency.perUSD || 150;
 
   /* ---- Type metadata ----------------------------------------------------- */
   const TYPE = {
@@ -214,6 +252,33 @@
 
       <div class="clocks" id="clocks"></div>
 
+      ${(() => {
+        const now = new Date();
+        const inTrip = now >= new Date(T.meta.landJapan + "T00:00:00") && now <= new Date(T.meta.endDate + "T23:59:59");
+        if (!inTrip) return "";
+        const iso = now.toISOString().slice(0, 10);
+        const day = T.days.find((d) => d.date === iso) || T.days.find((d) => d.date >= iso);
+        if (!day) return "";
+        return `<div class="card" style="margin-top:14px;border-color:var(--ai)">
+          <span class="pill ${day.city}">Today · ${cityName(day.city)}</span>
+          <h3 style="margin:8px 0 4px">${esc(day.title)}</h3>
+          <div class="r-sub">${esc(day.summary)}</div>
+          ${day.meetup ? `<div class="meetup" style="margin:10px 0 0">📍 ${esc(day.meetup)}</div>` : ""}
+          <button class="btn primary" style="margin-top:12px;width:100%" data-go="itinerary">See today's plan</button>
+        </div>`;
+      })()}
+
+      ${state.weather.length ? `<div class="card" style="margin-top:14px">
+        <h3>🌤️ Japan right now</h3>
+        <div style="display:flex;gap:10px;margin-top:8px">
+          ${state.weather.map((w) => `<div style="flex:1;text-align:center">
+            <div style="font-size:24px">${w.wx}</div>
+            <div style="font-family:var(--serif);font-weight:600;font-size:18px">${isFinite(w.temp) ? w.temp + "°" : "—"}</div>
+            <div class="r-sub" style="font-size:11px">${esc(w.name)}</div></div>`).join("")}
+        </div>
+        <p class="r-sub" style="margin:10px 0 0">On the trip (late April): typically ~55–72°F and dry.</p>
+      </div>` : ""}
+
       <div class="section-title" style="margin-top:20px">The crew</div>
       <div class="card">
         <div class="crew-strip">
@@ -235,13 +300,41 @@
       </div>
 
       <div class="card" style="margin-top:16px">
-        <h3>⚠️ Golden Week wall</h3>
-        <p style="margin:0;font-size:13px;color:var(--ink-soft)">${esc(T.meta.goldenWeekWarning)}</p>
+        <h3>📊 Trip so far</h3>
+        <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:10px;margin-top:8px;text-align:center">
+          ${(() => {
+            const dtg = Math.max(0, Math.ceil((new Date(T.meta.departUS + "T08:00:00") - new Date()) / 86400000));
+            const votes = SYNC.on ? state.allVotes.length : Object.keys(state.decisions).filter((k) => state.decisions[k]).length;
+            const ideas = T.ideas.length + state.postedIdeas.length;
+            const stat = (n, l) => `<div><div style="font-family:var(--serif);font-size:26px;font-weight:600;color:var(--ai)">${n}</div><div class="r-sub" style="font-size:11px">${l}</div></div>`;
+            return stat(dtg, "days to go") + stat(state.photos.length, "photos") + stat(votes, "votes cast");
+          })()}
+        </div>
       </div>
 
-      <div class="foot-note">Built as a baseline for the group · edit anytime</div>
+      <div class="card">
+        <h3>📲 Share with the crew</h3>
+        <p class="r-sub" style="margin:4px 0 12px">Scan or tap the link to open the app — everyone joins the same shared trip.</p>
+        <div style="display:flex;gap:14px;align-items:center">
+          <img src="https://api.qrserver.com/v1/create-qr-code/?size=200x200&margin=0&data=${encodeURIComponent(location.origin + location.pathname)}" alt="QR code" width="100" height="100" style="border-radius:10px;background:#fff;padding:6px;border:1px solid var(--line);flex:none" />
+          <div style="flex:1;min-width:0">
+            <div class="r-sub" style="word-break:break-all">${esc(location.origin + location.pathname)}</div>
+            <button class="btn ghost" id="copyLink" style="margin-top:10px">Copy link</button>
+          </div>
+        </div>
+      </div>
+
+      <div class="card" style="border-color:#e2ad55;background:#fdf6ea">
+        <h3>⚠️ Golden Week wall</h3>
+        <p style="margin:0;font-size:13px;color:var(--ink-2)">${esc(T.meta.goldenWeekWarning)}</p>
+      </div>
+
+      <div class="foot-note">Built for the crew · everything syncs live · edit anytime</div>
     `;
     s.querySelectorAll("[data-go]").forEach((b) => b.addEventListener("click", () => show(b.dataset.go)));
+    const cl = $("#copyLink"); if (cl) cl.addEventListener("click", () => {
+      navigator.clipboard?.writeText(location.origin + location.pathname).then(() => { cl.textContent = "Copied ✓"; setTimeout(() => cl.textContent = "Copy link", 1500); }).catch(() => {});
+    });
     renderClocks();
     tickCountdown();
   }
@@ -276,12 +369,13 @@
   /* =======================================================================
      ITINERARY
      ==================================================================== */
+  const openDays = new Set(); // which day cards are expanded (preserved across re-renders)
   function renderItinerary() {
     const s = $("#screen-itinerary");
     const filters = ["all", ...T.cities.map((c) => c.id)];
     s.innerHTML = `
       <div class="section-title">Itinerary</div>
-      <div class="section-sub">Proposed day-by-day — tap a day to expand. Everything's open for discussion.</div>
+      <div class="section-sub">Tap a day to expand. Hit <b>＋ I'm in</b> on anything you want to join — everyone sees who's up for what.</div>
       <div class="filters" id="itinFilters">
         ${filters.map((f) => `<button class="chip ${f === state.cityFilter ? "active" : ""}" data-city="${f}">${f === "all" ? "All" : cityName(f)}</button>`).join("")}
       </div>
@@ -295,19 +389,27 @@
   function renderDayList() {
     const list = $("#dayList");
     const days = T.days.filter((d) => state.cityFilter === "all" || d.city === state.cityFilter);
-    list.innerHTML = days.map((d, idx) => {
+    if (!openDays.size && days[0]) openDays.add(days[0].date); // open the first day initially
+    list.innerHTML = days.map((d) => {
       const f = fmtDate(d.date);
-      const items = d.items.map((it) => {
+      const items = d.items.map((it, ii) => {
         const tm = TYPE[it.type] || TYPE.sight;
         const map = it.lat ? `<a class="tl-map" href="https://www.google.com/maps/search/?api=1&query=${it.lat},${it.lng}" target="_blank" rel="noopener">📍 Map</a>` : "";
+        const iid = `${d.date}#${ii}`;
+        const going = tally("rsvp", iid)["in"] || [];
+        const meIn = myVote("rsvp", iid) === "in";
+        const rsvp = it.type === "travel" ? "" : `<div class="rsvp">
+          <button class="rsvp-btn ${meIn ? "on" : ""}" data-rsvp="${iid}">${meIn ? "✓ You're in" : "＋ I'm in"}</button>
+          ${going.length ? `<span class="tally" style="margin:0">${voterChips(going)}</span>` : ""}
+        </div>`;
         return `<div class="tl-item ${it.type}">
           ${it.time ? `<div class="tl-time">${esc(it.time)}</div>` : ""}
           <div class="tl-title"><span class="type-emoji">${tm.emoji}</span>${esc(it.title)}</div>
           ${it.note ? `<div class="tl-note">${esc(it.note)}</div>` : ""}
-          ${map}
+          ${map}${rsvp}
         </div>`;
       }).join("");
-      return `<div class="day" data-day="${idx}">
+      return `<div class="day ${openDays.has(d.date) ? "open" : ""}" data-date="${d.date}">
         <div class="day-head">
           <div class="day-date"><div class="d">${f.day}</div><div class="m">${f.wd} ${f.mon}</div></div>
           <div class="info"><div class="t">${esc(d.title)} <span class="pill ${d.city}">${cityName(d.city)}</span></div>
@@ -320,9 +422,12 @@
         </div>
       </div>`;
     }).join("");
-    list.querySelectorAll(".day-head").forEach((h) => h.addEventListener("click", () => h.parentElement.classList.toggle("open")));
-    // open the first day by default
-    const first = list.querySelector(".day"); if (first) first.classList.add("open");
+    list.querySelectorAll(".day-head").forEach((h) => h.addEventListener("click", () => {
+      const day = h.parentElement, date = day.dataset.date;
+      if (openDays.has(date)) openDays.delete(date); else openDays.add(date);
+      day.classList.toggle("open");
+    }));
+    list.querySelectorAll("[data-rsvp]").forEach((b) => b.addEventListener("click", (e) => { e.stopPropagation(); setVote("rsvp", b.dataset.rsvp, "in"); }));
   }
 
   /* =======================================================================
@@ -726,7 +831,7 @@
      BUDGET (shared expenses + settle up)
      ==================================================================== */
   function toUSD(amount, cur) {
-    const per = T.meta.currency.perUSD || 1;
+    const per = effectiveRate();
     return cur === "JPY" ? amount / per : Number(amount);
   }
   function renderBudget() {
@@ -751,6 +856,18 @@
         <h3>Trip cost — TBD</h3>
         <div class="r-sub" style="font-size:13px">We'll fill in real numbers once flights and stays are booked. Use this tab to split and settle shared expenses as they come up.</div>
       </div>`}
+
+      <div class="card">
+        <div style="display:flex;align-items:center;justify-content:space-between;gap:10px">
+          <div><b style="font-size:14px">💱 Exchange rate</b>
+            <div class="r-sub">¥<span id="rateVal">${effectiveRate().toFixed(1)}</span> = $1 ${state.rateOverride ? "(manual)" : state.liveRate ? "(live)" : "(default)"}</div></div>
+          <div style="display:flex;gap:6px;align-items:center">
+            <input id="rateInput" type="number" inputmode="decimal" placeholder="¥/＄" value="${state.rateOverride || ""}" style="width:80px;padding:9px 10px;border:1px solid var(--line);border-radius:var(--r-sm);font-size:14px" />
+            <button class="btn ghost" id="rateSave" style="padding:9px 12px">Set</button>
+            ${state.rateOverride ? `<button class="btn ghost" id="rateAuto" style="padding:9px 12px">Auto</button>` : ""}
+          </div>
+        </div>
+      </div>
 
       <div class="section-title" style="font-size:16px">Balances</div>
       <div class="balance-grid">
@@ -783,6 +900,14 @@
 
     $("#exAdd").addEventListener("click", addExpense);
     bindExpenseDelete();
+    $("#rateSave").addEventListener("click", () => {
+      const v = parseFloat($("#rateInput").value);
+      state.rateOverride = v > 0 ? v : null;
+      LS.set("rateOverride", state.rateOverride); renderBudget();
+    });
+    const ra = $("#rateAuto"); if (ra) ra.addEventListener("click", () => {
+      state.rateOverride = null; LS.set("rateOverride", null); renderBudget();
+    });
   }
   function settleText(nets) {
     const cred = Object.entries(nets).filter(([, v]) => v > 0.5).map(([id, v]) => ({ id, v }));
@@ -1043,6 +1168,176 @@
   }
 
   /* =======================================================================
+     NOTES + OMIYAGE (shared running lists)
+     ==================================================================== */
+  function renderNotes() {
+    const s = $("#screen-notes");
+    const lists = [
+      { key: "note", title: "Notes & to-dos", ph: "e.g. Buy more Suica credit", icon: "📝" },
+      { key: "omiyage", title: "Omiyage & shopping", ph: "e.g. KitKats for mom", icon: "🎁" },
+    ];
+    s.innerHTML = `
+      <div class="section-title">Notes</div>
+      <div class="section-sub">Shared running lists — anything the group should remember. ${SYNC.on ? "Synced." : SYNC.configured ? "Syncing…" : "Local for now."}</div>
+      ${lists.map((L) => {
+        const items = state.notes.filter((n) => (n.list || "note") === L.key);
+        return `<div class="card">
+          <h3>${L.icon} ${L.title}</h3>
+          <div style="margin:8px 0 12px">
+            ${items.length ? items.map((n) => `<div class="check ${n.done ? "done" : ""}" style="box-shadow:none;margin-bottom:6px">
+              <input type="checkbox" ${n.done ? "checked" : ""} data-notedone="${n.id}" />
+              <label style="flex:1">${esc(n.text)}${n.author ? ` <span class="r-sub" style="font-size:11px">· ${esc((byId(n.author) || {}).name?.split(" ")[0] || "")}</span>` : ""}</label>
+              <button class="btn danger" data-notedel="${n.id}" style="padding:5px 9px">✕</button>
+            </div>`).join("") : `<div class="empty" style="padding:12px">Nothing yet.</div>`}
+          </div>
+          <div style="display:flex;gap:8px">
+            <input id="note_${L.key}" placeholder="${L.ph}" style="flex:1;padding:11px 12px;border:1px solid var(--line);border-radius:var(--r-sm);font-size:14px" />
+            <button class="btn primary" data-noteadd="${L.key}">Add</button>
+          </div>
+        </div>`;
+      }).join("")}`;
+    s.querySelectorAll("[data-noteadd]").forEach((b) => b.addEventListener("click", () => addNote(b.dataset.noteadd)));
+    s.querySelectorAll("[data-notedone]").forEach((c) => c.addEventListener("change", () => toggleNote(c.dataset.notedone, c.checked)));
+    s.querySelectorAll("[data-notedel]").forEach((b) => b.addEventListener("click", () => removeNote(b.dataset.notedel)));
+  }
+  async function addNote(list) {
+    const inp = $("#note_" + list), text = inp.value.trim();
+    if (!text) return;
+    const author = state.me || "";
+    if (SYNC.on) { const row = await Backend.addNote({ list, text, done: false, author }); if (row) state.notes.push(row); }
+    else { state.notes.push({ id: "ln" + Date.now(), list, text, done: false, author }); LS.set("notesLocal", state.notes); }
+    renderNotes();
+  }
+  async function toggleNote(id, done) {
+    const n = state.notes.find((x) => String(x.id) === String(id)); if (n) n.done = done;
+    if (SYNC.on) await Backend.updateNote(id, { done }); else LS.set("notesLocal", state.notes);
+    renderNotes();
+  }
+  async function removeNote(id) {
+    state.notes = state.notes.filter((x) => String(x.id) !== String(id));
+    if (SYNC.on) await Backend.removeNote(id); else LS.set("notesLocal", state.notes);
+    renderNotes();
+  }
+
+  /* =======================================================================
+     VAULT (confirmations — files + numbers)
+     ==================================================================== */
+  function renderVault() {
+    const s = $("#screen-vault");
+    if (!SYNC.on) {
+      s.innerHTML = `<div class="section-title">Vault</div>
+        <div class="section-sub">Every booking confirmation in one shared place.</div>
+        <div class="card"><h3>🔐 Connect the backend to turn this on</h3>
+          <p class="r-sub" style="margin:6px 0 0">Once Supabase is connected, upload confirmations (PDF/screenshot) + numbers so no one's digging through their inbox at the airport.</p></div>`;
+      return;
+    }
+    s.innerHTML = `
+      <div class="section-title">Vault</div>
+      <div class="section-sub">Every booking confirmation in one shared place — no more inbox archaeology.</div>
+      <div class="card">
+        <h3>Add a confirmation</h3>
+        <div class="expense-add">
+          <select id="confCat">
+            <option value="Flight">✈️ Flight</option><option value="Hotel">🏨 Hotel / ryokan</option>
+            <option value="Train">🚄 Train / Shinkansen</option><option value="Activity">🎟️ Activity / ticket</option>
+            <option value="Restaurant">🍽️ Restaurant</option><option value="Other">📄 Other</option>
+          </select>
+          <input id="confLabel" placeholder="Label (e.g. Yama no Chaya, 2 nights)" />
+          <input id="confNo" placeholder="Confirmation # (optional)" />
+          <label class="btn ghost" for="confFile" id="confFileLabel" style="text-align:center">📎 Attach file (optional)</label>
+          <input id="confFile" type="file" accept="image/*,application/pdf" style="display:none" />
+          <button class="btn primary" id="confAdd">Save to vault</button>
+          <div id="confStatus" class="r-sub"></div>
+        </div>
+      </div>
+      ${state.confirmations.length ? state.confirmations.map((c) => `<div class="card">
+        <div style="display:flex;align-items:flex-start;gap:10px">
+          <span style="font-size:20px">${({ Flight: "✈️", Hotel: "🏨", Train: "🚄", Activity: "🎟️", Restaurant: "🍽️" })[c.category] || "📄"}</span>
+          <div style="flex:1;min-width:0">
+            <div class="r-title">${esc(c.label)}</div>
+            <div class="r-sub">${esc(c.category)}${c.confirmation_no ? ` · #${esc(c.confirmation_no)}` : ""}${c.author ? ` · ${esc((byId(c.author) || {}).name?.split(" ")[0] || "")}` : ""}</div>
+            ${c.url ? `<a class="tl-map" href="${esc(c.url)}" target="_blank" rel="noopener" style="margin-top:6px">📎 Open file</a>` : ""}
+          </div>
+          ${c.author === state.me ? `<button class="btn danger" data-confdel="${c.id}">✕</button>` : ""}
+        </div>
+      </div>`).join("") : `<div class="empty">No confirmations saved yet.</div>`}`;
+    const fi = $("#confFile"), fl = $("#confFileLabel");
+    fi.addEventListener("change", () => { fl.textContent = fi.files[0] ? "📎 " + fi.files[0].name : "📎 Attach file (optional)"; });
+    $("#confAdd").addEventListener("click", addConfirmation);
+    s.querySelectorAll("[data-confdel]").forEach((b) => b.addEventListener("click", async () => {
+      const c = state.confirmations.find((x) => String(x.id) === String(b.dataset.confdel));
+      state.confirmations = state.confirmations.filter((x) => x !== c); renderVault();
+      if (c) await Backend.removeConfirmation(c);
+    }));
+  }
+  async function addConfirmation() {
+    const label = $("#confLabel").value.trim();
+    if (!label) { alert("Add a label."); return; }
+    const category = $("#confCat").value, confirmation_no = $("#confNo").value.trim(), author = state.me || "";
+    const file = $("#confFile").files[0] || null;
+    $("#confStatus").textContent = file ? "Uploading…" : "Saving…";
+    const row = await Backend.addConfirmation({ category, label, confirmation_no, author }, file);
+    if (row) { state.confirmations.unshift(row); renderVault(); }
+    else $("#confStatus").textContent = "Failed — try again.";
+  }
+
+  /* =======================================================================
+     TRANSLATE (free API + text-to-speech)
+     ==================================================================== */
+  let TR = { dir: "en2ja" };
+  function speak(text, lang) {
+    try { const u = new SpeechSynthesisUtterance(text); u.lang = lang; u.rate = 0.9; window.speechSynthesis.cancel(); window.speechSynthesis.speak(u); } catch (e) {}
+  }
+  function renderTranslate() {
+    const s = $("#screen-translate");
+    const enToJa = TR.dir === "en2ja";
+    s.innerHTML = `
+      <div class="section-title">Translate</div>
+      <div class="section-sub">Type, translate, and tap 🔊 to have your phone say it out loud to someone. Needs a connection.</div>
+      <div class="card">
+        <div class="btn-row" style="margin-bottom:12px">
+          <button class="btn ${enToJa ? "primary" : "ghost"}" id="trEnJa" style="flex:1">English → 日本語</button>
+          <button class="btn ${!enToJa ? "primary" : "ghost"}" id="trJaEn" style="flex:1">日本語 → English</button>
+        </div>
+        <textarea id="trInput" rows="3" placeholder="${enToJa ? "Type in English…" : "日本語を入力…"}" style="width:100%;padding:12px;border:1px solid var(--line);border-radius:var(--r-sm);font-size:16px;font-family:inherit;resize:vertical;background:#fffdfa;color:var(--ink)"></textarea>
+        <button class="btn primary" id="trGo" style="width:100%;margin-top:10px">Translate</button>
+        <div id="trResult"></div>
+      </div>
+      <div class="section-title" style="font-size:16px">Handy phrases</div>
+      <div class="card">
+        ${T.phrases.map((p) => `<div class="phrase">
+          <div class="p-en">${esc(p.en)}</div><div class="p-jp">${esc(p.jp)}</div>
+          <button class="btn ghost" data-say="${esc(p.jp)}" style="padding:5px 11px;font-size:15px">🔊</button></div>`).join("")}
+      </div>`;
+    $("#trEnJa").addEventListener("click", () => { TR.dir = "en2ja"; renderTranslate(); });
+    $("#trJaEn").addEventListener("click", () => { TR.dir = "ja2en"; renderTranslate(); });
+    $("#trGo").addEventListener("click", doTranslate);
+    s.querySelectorAll("[data-say]").forEach((b) => b.addEventListener("click", () => speak(b.dataset.say, "ja-JP")));
+  }
+  async function doTranslate() {
+    const text = $("#trInput").value.trim(); if (!text) return;
+    const enToJa = TR.dir === "en2ja";
+    const from = enToJa ? "en" : "ja", to = enToJa ? "ja" : "en";
+    const R = $("#trResult");
+    R.innerHTML = `<div class="r-sub" style="margin-top:12px">Translating…</div>`;
+    try {
+      const res = await fetch(`https://api.mymemory.translated.net/get?q=${encodeURIComponent(text)}&langpair=${from}|${to}`);
+      const data = await res.json();
+      const out = (data && data.responseData && data.responseData.translatedText) || "(no translation)";
+      R.innerHTML = `<div class="card" style="margin:12px 0 0;border-color:var(--ai)">
+        <div style="font-family:${to === "ja" ? "var(--serif)" : "inherit"};font-size:${to === "ja" ? "22px" : "18px"};font-weight:600;line-height:1.4">${esc(out)}</div>
+        <div class="btn-row" style="margin-top:12px">
+          <button class="btn primary" id="trSpeak" style="flex:1">🔊 Speak</button>
+          <button class="btn ghost" id="trCopy" style="flex:1">Copy</button>
+        </div></div>`;
+      $("#trSpeak").addEventListener("click", () => speak(out, to === "ja" ? "ja-JP" : "en-US"));
+      $("#trCopy").addEventListener("click", () => { navigator.clipboard?.writeText(out); const c = $("#trCopy"); c.textContent = "Copied ✓"; setTimeout(() => c.textContent = "Copy", 1400); });
+    } catch (e) {
+      R.innerHTML = `<div class="r-sub" style="margin-top:12px;color:var(--vermilion)">Couldn't translate — check your connection and try again.</div>`;
+    }
+  }
+
+  /* =======================================================================
      GUIDE + phrases
      ==================================================================== */
   function renderGuide() {
@@ -1092,7 +1387,9 @@
   const RENDERERS = {
     home: renderHome, itinerary: renderItinerary, crew: renderCrew, stays: renderStays,
     flights: renderFlights, budget: renderBudget, packing: renderPacking,
-    decisions: renderDecisions, booking: renderBooking, fares: renderFares, ideas: renderIdeas, photos: renderPhotos, guide: renderGuide,
+    decisions: renderDecisions, booking: renderBooking, fares: renderFares,
+    vault: renderVault, notes: renderNotes, translate: renderTranslate,
+    ideas: renderIdeas, photos: renderPhotos, guide: renderGuide,
   };
   function renderCurrent() {
     const active = $(".screen.active");
@@ -1106,6 +1403,8 @@
   renderWhoami();
   if (!state.me) setTimeout(openWho, 600);
   Sync.init(); // connects to the backend if configured; otherwise stays local
+  loadWeather();
+  loadRate();
 
   // PWA service worker — AUTO-UPDATE so new builds appear on their own,
   // with no manual cache clearing or re-adding the app.
