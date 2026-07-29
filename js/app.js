@@ -169,7 +169,7 @@
       }
     } catch (e) { /* offline — skip */ }
   }
-  const effectiveRate = () => Number(state.rateOverride) || Number(state.liveRate) || T.meta.currency.perUSD || 150;
+  const effectiveRate = () => Number(state.liveRate) || T.meta.currency.perUSD || 150;
 
   /* ---- Type metadata ----------------------------------------------------- */
   const TYPE = {
@@ -835,13 +835,17 @@
       </div>`}
 
       <div class="card">
-        <div style="display:flex;align-items:center;justify-content:space-between;gap:10px">
-          <div><b style="font-size:14px">💱 Exchange rate</b>
-            <div class="r-sub">¥<span id="rateVal">${effectiveRate().toFixed(1)}</span> = $1 ${state.rateOverride ? "(manual)" : state.liveRate ? "(live)" : "(default)"}</div></div>
-          <div style="display:flex;gap:6px;align-items:center">
-            <input id="rateInput" type="number" inputmode="decimal" placeholder="¥/＄" value="${state.rateOverride || ""}" style="width:80px;padding:9px 10px;border:1px solid var(--line);border-radius:var(--r-sm);font-size:14px" />
-            <button class="btn ghost" id="rateSave" style="padding:9px 12px">Set</button>
-            ${state.rateOverride ? `<button class="btn ghost" id="rateAuto" style="padding:9px 12px">Auto</button>` : ""}
+        <h3>💱 Currency converter</h3>
+        <div class="r-sub" style="margin:2px 0 12px">Live rate: <b>¥${effectiveRate().toFixed(1)} = $1</b> ${state.liveRate ? "· updates automatically" : "· estimate (offline)"}. Type in either box.</div>
+        <div style="display:flex;align-items:flex-end;gap:10px">
+          <div style="flex:1">
+            <label class="r-sub" style="font-weight:800">¥ Yen</label>
+            <input id="convJpy" type="number" inputmode="decimal" placeholder="0" style="width:100%;padding:12px;border:1px solid var(--line);border-radius:var(--r-sm);font-size:17px;font-family:var(--serif);background:#fffdfa;color:var(--ink)" />
+          </div>
+          <span style="font-size:20px;color:var(--ink-3);padding-bottom:10px">⇄</span>
+          <div style="flex:1">
+            <label class="r-sub" style="font-weight:800">$ USD</label>
+            <input id="convUsd" type="number" inputmode="decimal" placeholder="0" style="width:100%;padding:12px;border:1px solid var(--line);border-radius:var(--r-sm);font-size:17px;font-family:var(--serif);background:#fffdfa;color:var(--ink)" />
           </div>
         </div>
       </div>
@@ -877,14 +881,10 @@
 
     $("#exAdd").addEventListener("click", addExpense);
     bindExpenseDelete();
-    $("#rateSave").addEventListener("click", () => {
-      const v = parseFloat($("#rateInput").value);
-      state.rateOverride = v > 0 ? v : null;
-      LS.set("rateOverride", state.rateOverride); renderBudget();
-    });
-    const ra = $("#rateAuto"); if (ra) ra.addEventListener("click", () => {
-      state.rateOverride = null; LS.set("rateOverride", null); renderBudget();
-    });
+    // Live two-way converter
+    const cy = $("#convJpy"), cu = $("#convUsd");
+    cy.addEventListener("input", () => { const y = parseFloat(cy.value); cu.value = isFinite(y) ? (y / effectiveRate()).toFixed(2) : ""; });
+    cu.addEventListener("input", () => { const d = parseFloat(cu.value); cy.value = isFinite(d) ? Math.round(d * effectiveRate()) : ""; });
   }
   function settleText(nets) {
     const cred = Object.entries(nets).filter(([, v]) => v > 0.5).map(([id, v]) => ({ id, v }));
