@@ -407,10 +407,9 @@
   function collectPins() {
     const pins = [];
     T.stays.forEach((st) => {
-      // Pin the group's chosen option for this city, else the suggested/first one.
+      // Pin the group's chosen proposed place for this city (if it has coords).
       const chosenId = myVote("stay", st.city);
-      const merged = [...st.options, ...state.proposedStays.filter((p) => p.city === st.city)];
-      const opt = merged.find((o) => o.id === chosenId) || st.options.find((o) => o.recommended) || st.options[0];
+      const opt = state.proposedStays.find((p) => p.city === st.city && p.id === chosenId);
       if (opt && opt.lat) pins.push({ lat: opt.lat, lng: opt.lng, city: st.city, type: "stay", title: opt.name, note: st.label + " · " + (opt.tag || "") });
     });
     T.days.forEach((d) => d.items.forEach((it) => {
@@ -557,43 +556,56 @@
   /* =======================================================================
      STAYS
      ==================================================================== */
+  const MAX_STAY_PROPOSALS = 2; // per person, per city
   function renderStays() {
     const s = $("#screen-stays");
     s.innerHTML = `
       <div class="section-title">Where we sleep</div>
-      <div class="section-sub">Nothing's booked — vote on a place for each stop, or propose your own. ${SYNC.on ? "Votes tally live." : SYNC.configured ? "Syncing…" : "<b>Local until the backend is connected.</b>"}</div>
+      <div class="section-sub">How this works: read up on the neighborhoods, <b>everyone submits up to ${MAX_STAY_PROPOSALS} places per stop</b>, then we vote. ${SYNC.on ? "All live." : SYNC.configured ? "Syncing…" : "<b>Local until the backend connects.</b>"}</div>
       ${T.stays.map((st) => {
         const mine = myVote("stay", st.city);
         const counts = tally("stay", st.city);
-        const options = [
-          ...st.options.map((o) => ({ ...o, posted: false })),
-          ...state.proposedStays.filter((p) => p.city === st.city).map((p) => ({ id: p.id, name: p.name, tag: p.tag || "Proposed", note: p.note || "", lat: p.lat, lng: p.lng, link: p.link, author: p.author, posted: true })),
-        ];
-        return `<div style="margin-bottom:26px">
+        const hoods = T.neighborhoods.filter((n) => n.city === st.city);
+        const options = state.proposedStays.filter((p) => p.city === st.city)
+          .map((p) => ({ id: p.id, name: p.name, tag: p.tag || "Proposed", note: p.note || "", link: p.link, author: p.author }));
+        const myCount = options.filter((o) => o.author === state.me).length;
+        return `<div style="margin-bottom:30px">
           <div style="display:flex;align-items:center;gap:9px;margin:0 2px 3px">
             <span class="pill ${st.city}">${esc(st.label)}</span>
             <span style="font-size:11.5px;color:var(--ink-3);font-weight:800;letter-spacing:.3px">${esc(st.nights)}</span>
           </div>
-          <div class="section-sub" style="margin:4px 2px 12px">${esc(st.note)}</div>
-          ${options.map((o) => {
+
+          <div class="hood-scroll">
+            ${hoods.map((n) => `<div class="hood-card">
+              <div class="hood-name">${n.emoji} ${esc(n.name)}</div>
+              <div class="hood-tags">${n.tags.map((t) => `<span>${esc(t)}</span>`).join("")}</div>
+              <div class="hood-blurb">${esc(n.blurb)}</div>
+              <div class="hood-base">🛏️ ${esc(n.base)}</div>
+            </div>`).join("")}
+          </div>
+
+          ${options.length ? options.map((o) => {
             const voters = counts[o.id] || [];
             const sel = mine === o.id;
+            const author = byId(o.author);
             return `<button class="stay-opt ${sel ? "sel" : ""}" data-stay="${st.city}" data-opt="${o.id}">
               <div class="stay-opt-main">
-                <div class="stay-opt-name">${esc(o.name)}${o.recommended ? '<span class="rec">Suggested</span>' : ""}${o.posted ? '<span class="rec" style="color:var(--ai-2);border-color:var(--ai-2)">Proposed</span>' : ""}</div>
-                <div class="stay-opt-tag">${esc(o.tag)}</div>
+                <div class="stay-opt-name">${esc(o.name)}</div>
+                <div class="stay-opt-tag">${esc(o.tag)}${author ? ` · by ${esc(author.name.split(" ")[0])}` : ""}</div>
                 ${o.note ? `<div class="stay-opt-note">${esc(o.note)}</div>` : ""}
                 <div style="display:flex;align-items:center;gap:14px;margin-top:8px;flex-wrap:wrap">
-                  ${o.lat ? `<a class="tl-map" href="https://www.google.com/maps/search/?api=1&query=${o.lat},${o.lng}" target="_blank" rel="noopener" onclick="event.stopPropagation()">📍 Map</a>` : ""}
                   ${o.link ? `<a class="tl-map" href="${esc(o.link)}" target="_blank" rel="noopener" onclick="event.stopPropagation()">🔗 Link</a>` : ""}
-                  ${o.posted && o.author === state.me ? `<span class="tl-map" style="color:var(--vermilion)" data-staydel="${o.id}">Remove</span>` : ""}
+                  <a class="tl-map" href="https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(o.name + " " + st.label + " Japan")}" target="_blank" rel="noopener" onclick="event.stopPropagation()">📍 Map</a>
+                  ${o.author === state.me ? `<span class="tl-map" style="color:var(--vermilion)" data-staydel="${o.id}">Remove</span>` : ""}
                 </div>
                 ${voters.length ? `<div class="tally" style="margin-top:8px">${voterChips(voters)}<span class="tally-n">${voters.length} vote${voters.length === 1 ? "" : "s"}</span></div>` : ""}
               </div>
               <div class="stay-check">${sel ? "◉" : "◯"}</div>
             </button>`;
-          }).join("")}
-          <button class="btn ghost" data-proposecity="${st.city}" style="width:100%;margin-top:2px">+ Propose a place in ${esc(st.label)}</button>
+          }).join("") : `<div class="empty" style="padding:16px">No places submitted for ${esc(st.label)} yet — drop the first one in.</div>`}
+          ${myCount < MAX_STAY_PROPOSALS
+            ? `<button class="btn ghost" data-proposecity="${st.city}" style="width:100%;margin-top:2px">+ Submit a place in ${esc(st.label)} (${MAX_STAY_PROPOSALS - myCount} left)</button>`
+            : `<div class="r-sub" style="text-align:center;padding:8px">You've used your ${MAX_STAY_PROPOSALS} submissions for ${esc(st.label)}.</div>`}
         </div>`;
       }).join("")}
       <div id="proposeForm"></div>`;
@@ -602,12 +614,14 @@
     s.querySelectorAll("[data-proposecity]").forEach((b) => b.addEventListener("click", () => openProposeStay(b.dataset.proposecity)));
   }
   function openProposeStay(city) {
+    if (!state.me) { openWho(); return; }
     const st = T.stays.find((x) => x.city === city);
     $("#proposeForm").innerHTML = `<div class="card" style="border-color:var(--ai)">
-      <h3>Propose a place in ${esc(st.label)}</h3>
+      <h3>Submit a place in ${esc(st.label)}</h3>
+      <p class="section-sub" style="margin:2px 0 12px">Found something on Booking / Airbnb / anywhere? Drop it in — the neighborhood cards above help you aim.</p>
       <div class="expense-add">
-        <input id="psName" placeholder="Hotel / place name" />
-        <input id="psTag" placeholder="Vibe (e.g. Boutique hotel)" />
+        <input id="psName" placeholder="Hotel / house name" />
+        <input id="psTag" placeholder="Neighborhood + vibe (e.g. Shibuya · boutique)" />
         <input id="psNote" placeholder="Why it's good (optional)" />
         <input id="psLink" placeholder="Link (optional)" />
         <button class="btn primary" id="psAdd">Add to ${esc(st.label)}</button>
@@ -617,8 +631,11 @@
     $("#proposeForm").scrollIntoView({ behavior: "smooth", block: "center" });
   }
   async function addProposedStay(city) {
+    if (!state.me) { openWho(); return; }
+    const already = state.proposedStays.filter((p) => p.city === city && p.author === state.me).length;
+    if (already >= MAX_STAY_PROPOSALS) { alert(`You've already submitted ${MAX_STAY_PROPOSALS} places for this stop.`); return; }
     const name = $("#psName").value.trim(); if (!name) { alert("Add a place name."); return; }
-    const tag = $("#psTag").value.trim() || "Proposed", note = $("#psNote").value.trim(), link = $("#psLink").value.trim(), author = state.me || "";
+    const tag = $("#psTag").value.trim() || "Proposed", note = $("#psNote").value.trim(), link = $("#psLink").value.trim(), author = state.me;
     if (SYNC.on) {
       const row = await Backend.addStayOption({ city, name, tag, note, link, author });
       if (row) state.proposedStays.push(row);
