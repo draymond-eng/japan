@@ -314,19 +314,9 @@
 
       <div class="card">
         <h3>📲 Share with the crew</h3>
-        <p class="r-sub" style="margin:4px 0 12px">Scan or tap the link to open the app — everyone joins the same shared trip.</p>
-        <div style="display:flex;gap:14px;align-items:center">
-          <img src="https://api.qrserver.com/v1/create-qr-code/?size=200x200&margin=0&data=${encodeURIComponent(location.origin + location.pathname)}" alt="QR code" width="100" height="100" style="border-radius:10px;background:#fff;padding:6px;border:1px solid var(--line);flex:none" />
-          <div style="flex:1;min-width:0">
-            <div class="r-sub" style="word-break:break-all">${esc(location.origin + location.pathname)}</div>
-            <button class="btn ghost" id="copyLink" style="margin-top:10px">Copy link</button>
-          </div>
-        </div>
-      </div>
-
-      <div class="card" style="border-color:#e2ad55;background:#fdf6ea">
-        <h3>⚠️ Golden Week wall</h3>
-        <p style="margin:0;font-size:13px;color:var(--ink-2)">${esc(T.meta.goldenWeekWarning)}</p>
+        <p class="r-sub" style="margin:4px 0 12px">Send this link — everyone joins the same shared trip.</p>
+        <div class="r-sub" style="word-break:break-all">${esc(location.origin + location.pathname)}</div>
+        <button class="btn ghost" id="copyLink" style="margin-top:10px;width:100%">Copy link</button>
       </div>
 
       <div class="foot-note">Built for the crew · everything syncs live · edit anytime</div>
