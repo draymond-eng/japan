@@ -158,11 +158,11 @@ const TRIP = {
   days: [
     {
       date: "2027-04-15", city: "tokyo", title: "Land in Tokyo — soak & yakitori",
-      summary: "Land Haneda in the afternoon, drop bags, first soak on the 18th floor, yakitori in Omoide Yokocho, bed. Don't plan anything.",
-      meetup: "Yuen Shinjuku lobby once everyone's landed",
+      summary: "Land Haneda in the afternoon, drop bags at the hotel, yakitori in Omoide Yokocho, bed. Don't plan anything.",
+      meetup: "Tokyo hotel lobby once everyone's landed (hotel TBD — vote in Stays)",
       items: [
         { time: "PM", type: "travel", title: "Land at Haneda (HND)", note: "Chicago 4 + DC 2 converge Thursday afternoon. Grab IC cards / pocket wifi at the airport.", lat: 35.5494, lng: 139.7798 },
-        { time: "", type: "rest", title: "First onsen soak", note: "18th-floor hot spring over the skyline. This is why we picked this ryokan.", lat: 35.6949, lng: 139.7076 },
+        { time: "", type: "rest", title: "Settle in & unwind", note: "Drop bags, shower off the flight (or a soak, if our hotel has an onsen — a strong argument when voting in Stays).", lat: 35.6949, lng: 139.7076 },
         { time: "20:00", type: "food", title: "Yakitori in Omoide Yokocho", note: "'Memory Lane' — tiny smoky grilled-skewer alley by Shinjuku Station. Perfect low-effort first night.", lat: 35.6938, lng: 139.6996 },
       ],
     },
@@ -204,10 +204,10 @@ const TRIP = {
       summary: "Tsukiji breakfast, ship the big bags ahead to Kyoto, take the Romancecar into Hakone, and stop moving.",
       meetup: "Tsukiji Outer Market main gate — 8:30am",
       items: [
-        { time: "08:30", type: "food", title: "Tsukiji breakfast", note: "Tamagoyaki, uni, tuna, strawberries. Go hungry. Then check out of Yuen Shinjuku.", lat: 35.6654, lng: 139.7707 },
-        { time: "11:00", type: "travel", title: "Ship big bags → Kyoto (takkyubin)", note: "Send suitcases ahead to The Gion House so you travel light through Hakone. ~¥2,000/bag, arrives next day.", lat: 35.6900, lng: 139.7040 },
+        { time: "08:30", type: "food", title: "Tsukiji breakfast", note: "Tamagoyaki, uni, tuna, strawberries. Go hungry. Then check out of the Tokyo hotel.", lat: 35.6654, lng: 139.7707 },
+        { time: "11:00", type: "travel", title: "Ship big bags → Kyoto (takkyubin)", note: "Send suitcases ahead to the Kyoto stay so you travel light through Hakone. ~¥2,000/bag, arrives next day.", lat: 35.6900, lng: 139.7040 },
         { time: "13:00", type: "travel", title: "Odakyu Romancecar to Hakone", note: "Reserved scenic train from Shinjuku into the mountains. Grab the front seats if you can.", lat: 35.2323, lng: 139.1069 },
-        { time: "15:00", type: "rest", title: "Yama no Chaya — arrive & stop moving", note: "Kimono fitting, private open-air stone bath on your deck, kaiseki dinner. This is the day you do nothing.", lat: 35.2258, lng: 139.1044 },
+        { time: "15:00", type: "rest", title: "Check into the ryokan & stop moving", note: "Ryokan TBD — vote in Stays. Ideally: onsen soak, kaiseki dinner, and absolutely nothing else. This is the day you do nothing.", lat: 35.2258, lng: 139.1044 },
       ],
     },
     {
@@ -217,7 +217,7 @@ const TRIP = {
       items: [
         { time: "09:00", type: "sight", title: "Lake Ashi (if clear)", note: "Pirate-ship cruise with Mt. Fuji reflections on a clear day. If it's socked in, sleep in instead — no forcing it.", lat: 35.2039, lng: 139.0257 },
         { time: "13:00", type: "travel", title: "Shinkansen to Kyoto", note: "Back down to Odawara, then the bullet train west (~2h to Kyoto). Reserve 6 seats together. Get an ekiben.", lat: 34.9858, lng: 135.7588 },
-        { time: "16:00", type: "rest", title: "Settle into The Gion House", note: "Your shipped bags are waiting. Roof deck, two kitchens, all six under one roof.", lat: 35.0037, lng: 135.7760 },
+        { time: "16:00", type: "rest", title: "Settle into the Kyoto stay", note: "Your shipped bags are waiting. Kyoto stay TBD — vote in Stays.", lat: 35.0037, lng: 135.7760 },
         { time: "19:30", type: "food", title: "Dinner in Pontocho", note: "Lantern-lit dining alley along the river. Book a spot with a kawayuka riverside deck if it's warm.", lat: 35.0043, lng: 135.7708 },
       ],
     },
@@ -240,7 +240,7 @@ const TRIP = {
         { time: "07:00", type: "sight", title: "Arashiyama Bamboo Grove — empty", note: "Transcendent at 7am, a mob by 10. Same rule as Fushimi Inari: go early or don't bother.", lat: 35.0170, lng: 135.6716 },
         { time: "08:30", type: "sight", title: "Tenryu-ji", note: "Zen temple + borrowed-scenery garden right by the grove.", lat: 35.0159, lng: 135.6738 },
         { time: "14:00", type: "activity", title: "Craft workshop", note: "Hands-on afternoon — pottery, indigo dyeing, knife-making, or woodwork. → pick one in Decisions.", lat: 35.0116, lng: 135.7681 },
-        { time: "19:00", type: "food", title: "Cook at The Gion House", note: "Two kitchens, a market run, and a night in. The couples' night-in of the trip.", lat: 35.0037, lng: 135.7760 },
+        { time: "19:00", type: "food", title: "Cook at the house", note: "A market run and a night in — the couples' night-in of the trip. (Argues for a Kyoto stay with a kitchen!)", lat: 35.0037, lng: 135.7760 },
       ],
     },
     {
@@ -299,7 +299,7 @@ const TRIP = {
     },
     {
       id: "d-hakone", title: "The Hakone onsen night — in or out?", status: "leaning",
-      note: "Yama no Chaya: riverside gorge, a private open-air stone bath on each room's deck, kimono on arrival, kaiseki dinner. The 'room IS the experience' night.",
+      note: "A splurge ryokan night: private open-air baths, kimono on arrival, kaiseki dinner. The 'room IS the experience' night — which ryokan is up to the Stays vote.",
       options: [
         { id: "in", label: "In — trip centerpiece", note: "Worth it. Book it first." },
         { id: "simpler", label: "Keep Hakone, simpler ryokan", note: "Still an onsen night, lighter touch." },
@@ -402,10 +402,10 @@ const TRIP = {
   /* ---- Booking timeline. timing: now | soon | later ----------------------- */
   bookingOrder: [
     { id: "bk-pass",   label: "Passports valid 6+ months", note: "Everyone's passport must be valid well past the trip. If anyone needs a renewal, start now — it's the one thing you can't leave late.", timing: "now",   when: "Do this week" },
-    { id: "bk-hakone", label: "Yama no Chaya (Hakone)", note: "Top ryokan, very limited rooms — books out first. Grab all 3 rooms as soon as the calendar allows.", timing: "now", when: "Book now" },
-    { id: "bk-gion",   label: "The Gion House (Kyoto)", note: "Whole house that sleeps 6 — these go fast. Book both units together.", timing: "now", when: "Book now" },
+    { id: "bk-hakone", label: "Hakone ryokan", note: "Top ryokan have very limited rooms and book out first. Pick the winner in Stays, then grab all 3 rooms ASAP.", timing: "now", when: "Vote → book now" },
+    { id: "bk-gion",   label: "Kyoto stay", note: "Places that sleep 6 together go fast. Vote in Stays, then lock it.", timing: "now", when: "Vote → book now" },
     { id: "bk-flights",label: "Flights — Haneda round-trip", note: "4 from Chicago, 2 from DC. April fares are open now; far easier to get 6 seats together early.", timing: "now", when: "Book now" },
-    { id: "bk-yuen",   label: "Yuen Shinjuku (Tokyo)", note: "3 double rooms — fine to lock in now.", timing: "now", when: "Book now" },
+    { id: "bk-tokyo",  label: "Tokyo hotel", note: "3 rooms, central + near trains. Vote in Stays, then book.", timing: "now", when: "Vote → book now" },
     { id: "bk-miyako", label: "Miyako Odori tickets", note: "Geiko/maiko dance — tickets go on sale in early spring. Watch for the release.", timing: "soon", when: "~Feb–Mar 2027" },
     { id: "bk-insurance", label: "Travel insurance", note: "Buy once flights are booked so the trip cost is covered.", timing: "soon", when: "After flights" },
     { id: "bk-shink",  label: "Shinkansen seats", note: "Open EXACTLY 30 days before each leg — can't book earlier. Reserve all 6 seats together the day they open.", timing: "later", when: "~Mar 2027 · 30 days out" },
@@ -419,7 +419,7 @@ const TRIP = {
     { cat: "Documents", items: ["Passport (6+ mo validity)", "Flight confirmations", "Hotel confirmations", "Travel insurance", "Copy of passport", "IDP (if go-karting)"] },
     { cat: "Money & Phone", items: ["Some yen cash", "2+ credit cards (Visa/MC)", "eSIM or pocket wifi", "Charger + power bank", "US plugs fit (Japan is 100V Type A)"] },
     { cat: "Clothes (April layers)", items: ["Light jacket / packable shell", "A sweater or two", "Broken-in walking shoes", "Slip-on shoes (temples = shoes off)", "One nicer outfit (kaiseki dinner)", "Socks without holes"] },
-    { cat: "For the ryokans", items: ["Swimsuit is NOT needed (onsen = bare)", "Small toiletry kit", "Hair tie (long hair up in the bath)", "Tattoo cover patches (if needed for Yuen shared bath)"] },
+    { cat: "For the ryokans", items: ["Swimsuit is NOT needed (onsen = bare)", "Small toiletry kit", "Hair tie (long hair up in the bath)", "Tattoo cover patches (if a stay has shared baths)"] },
     { cat: "Daypack", items: ["Foldable daypack", "Reusable water bottle", "Portable charger", "Hand towel (restrooms rarely have one)", "Small trash bag (bins are rare)", "Coin purse"] },
     { cat: "Health", items: ["Prescriptions (check Japan restrictions)", "Motion-sickness meds (boats/buses)", "Blister plasters", "Deodorant (bring your own)"] },
   ],
@@ -449,7 +449,7 @@ const TRIP = {
     { icon: "📦", title: "Ship your bags (takkyubin)", body: "Send big suitcases ahead — hotel-to-hotel, ~¥2,000/bag, arrives next day. We do this Tokyo→Kyoto so we travel light through Hakone. Life-changing." },
     { icon: "📶", title: "Internet: eSIM vs pocket wifi", body: "eSIM (Airalo/Ubigi) is easiest per phone. A pocket wifi router is great for a group — one device covers everyone. Book airport or hotel pickup." },
     { icon: "💴", title: "Cash & cards", body: "More cashless than it used to be, but carry cash — small restaurants, shrines, and markets are cash-only. 7-Eleven ATMs reliably take foreign cards. Yen ~164/USD right now, in our favor." },
-    { icon: "♨️", title: "Onsen rules", body: "Wash & rinse fully at the seated showers BEFORE the bath. No swimsuits — you go in bare. Small towel out of the water, hair up. Yama no Chaya has private baths (tattoos fine); confirm Yuen Shinjuku's shared-bath tattoo policy." },
+    { icon: "♨️", title: "Onsen rules", body: "Wash & rinse fully at the seated showers BEFORE the bath. No swimsuits — you go in bare. Small towel out of the water, hair up. If anyone has visible tattoos, check each stay's shared-bath policy — private/in-room baths sidestep it entirely." },
     { icon: "🙇", title: "Etiquette quick hits", body: "No tipping (it can offend). Quiet on trains, no calls. Shoes off at a genkan/step. Don't eat while walking. Carry your trash. Escalators: stand left in Tokyo." },
     { icon: "🏪", title: "Konbini are your friend", body: "7-Eleven, Lawson, FamilyMart: cheap great food, ATMs, tickets, umbrellas. Egg-salad sandos and fried chicken are elite. Open 24/7." },
     { icon: "🌸", title: "Late April weather", body: "Past peak bloom, which is the point: 55–72°F, dry, thinner crowds, ~half the hotel rates — plus wisteria and shibazakura season instead of cherry blossoms." },

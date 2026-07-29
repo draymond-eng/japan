@@ -1229,7 +1229,7 @@
             <option value="Train">🚄 Train / Shinkansen</option><option value="Activity">🎟️ Activity / ticket</option>
             <option value="Restaurant">🍽️ Restaurant</option><option value="Other">📄 Other</option>
           </select>
-          <input id="confLabel" placeholder="Label (e.g. Yama no Chaya, 2 nights)" />
+          <input id="confLabel" placeholder="Label (e.g. Hakone ryokan, 1 night)" />
           <input id="confNo" placeholder="Confirmation # (optional)" />
           <label class="btn ghost" for="confFile" id="confFileLabel" style="text-align:center">📎 Attach file (optional)</label>
           <input id="confFile" type="file" accept="image/*,application/pdf" style="display:none" />
