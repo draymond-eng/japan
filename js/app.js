@@ -29,6 +29,7 @@
     decisions: LS.get("decisions", {}), // {decisionId: optionId}
     stayVotes: LS.get("stayVotes", {}), // {city: optionId}
     ideas: LS.get("ideas", {}),         // {ideaId: true}
+    bookingLocal: LS.get("bookingLocal", {}), // {bookingId: true} (local fallback)
     expenses: LS.get("expenses", []),
     cityFilter: "all",
     // Shared (populated from the backend when SYNC.on):
@@ -88,6 +89,7 @@
     if (kind === "decision") return state.decisions[topic] || null;
     if (kind === "stay") return state.stayVotes[topic] || null;
     if (kind === "idea") return state.ideas[topic] ? "up" : null;
+    if (kind === "booking") return state.bookingLocal[topic] ? "done" : null;
     return null;
   }
   function tally(kind, topic) {
@@ -114,6 +116,7 @@
       if (kind === "decision") state.decisions[topic] = next || undefined;
       else if (kind === "stay") state.stayVotes[topic] = next || undefined;
       else if (kind === "idea") { if (next) state.ideas[topic] = true; else delete state.ideas[topic]; }
+      else if (kind === "booking") { if (next) state.bookingLocal[topic] = true; else delete state.bookingLocal[topic]; LS.set("bookingLocal", state.bookingLocal); }
       save(); renderCurrent();
       if (map && markerLayer && kind === "stay") drawPins();
     }
@@ -408,11 +411,56 @@
         </div>`;
       }).join("")}
       <div class="card">
-        <h3>Booking order 📋</h3>
-        <p class="section-sub" style="margin:2px 0 10px">From the plan — lock these in this order:</p>
-        ${T.bookingOrder.map((b, i) => `<div class="row"><div class="avatar" style="width:28px;height:28px;font-size:12px;background:var(--ai)">${i + 1}</div>
-          <div class="r-main"><div class="r-title">${esc(b.label)}</div><div class="r-sub">${esc(b.note)}</div></div></div>`).join("")}
+        <h3>📋 Booking timeline</h3>
+        <p class="section-sub" style="margin:2px 0 12px">What to book and when — now lives in its own tab.</p>
+        <button class="btn primary" style="width:100%" data-go="booking">Open the Booking timeline</button>
       </div>`;
+    s.querySelectorAll("[data-go]").forEach((b) => b.addEventListener("click", () => show(b.dataset.go)));
+  }
+
+  /* =======================================================================
+     BOOKING timeline (what to book, when — shared "booked" status)
+     ==================================================================== */
+  function renderBooking() {
+    const s = $("#screen-booking");
+    const buckets = [
+      { key: "now",   title: "Book now", sub: "Limited inventory — these reward moving early.", pill: "osaka" },
+      { key: "soon",  title: "Coming up", sub: "Opens in the next few months — get it on the radar.", pill: "kyoto" },
+      { key: "later", title: "Closer in", sub: "Can't be booked yet — opens ~30 days to a month before.", pill: "tokyo" },
+    ];
+    const doneCount = T.bookingOrder.filter((b) => (tally("booking", b.id)["done"] || []).length).length;
+    s.innerHTML = `
+      <div class="section-title">Booking timeline</div>
+      <div class="section-sub">Japan books in waves. Tap ✓ when something's done — ${SYNC.on ? "everyone sees it." : SYNC.configured ? "syncing…" : "saved on this phone."} ${doneCount}/${T.bookingOrder.length} booked.</div>
+      ${buckets.map((bk) => {
+        const items = T.bookingOrder.filter((b) => (b.timing || "later") === bk.key);
+        if (!items.length) return "";
+        return `<div style="margin-bottom:22px">
+          <div style="display:flex;align-items:center;gap:9px;margin:0 2px 3px">
+            <span class="pill ${bk.pill}">${bk.title}</span>
+          </div>
+          <div class="section-sub" style="margin:4px 2px 12px">${bk.sub}</div>
+          ${items.map((b) => {
+            const bookers = tally("booking", b.id)["done"] || [];
+            const done = bookers.length > 0;
+            return `<div class="card" style="${done ? "opacity:.72" : ""}">
+              <div style="display:flex;align-items:flex-start;gap:12px">
+                <button class="book-check ${done ? "on" : ""}" data-book="${b.id}" aria-label="Mark booked">${done ? "✓" : ""}</button>
+                <div style="flex:1;min-width:0">
+                  <div class="r-title" style="font-size:15px;${done ? "text-decoration:line-through" : ""}">${esc(b.label)}</div>
+                  <div class="r-sub" style="margin-top:3px">${esc(b.note)}</div>
+                  <div style="display:flex;align-items:center;gap:8px;margin-top:8px;flex-wrap:wrap">
+                    <span class="when-chip">${esc(b.when || "")}</span>
+                    ${bookers.length ? `<span class="tally">${voterChips(bookers)}<span class="tally-n">booked</span></span>` : ""}
+                  </div>
+                </div>
+              </div>
+            </div>`;
+          }).join("")}
+        </div>`;
+      }).join("")}
+      <div class="foot-note">Ask the app "what should we book now?" — the answer's up top. 🗾</div>`;
+    s.querySelectorAll("[data-book]").forEach((b) => b.addEventListener("click", () => setVote("booking", b.dataset.book, "done")));
   }
 
   /* =======================================================================
@@ -885,7 +933,7 @@
   const RENDERERS = {
     home: renderHome, itinerary: renderItinerary, crew: renderCrew, stays: renderStays,
     flights: renderFlights, budget: renderBudget, packing: renderPacking,
-    decisions: renderDecisions, ideas: renderIdeas, photos: renderPhotos, guide: renderGuide,
+    decisions: renderDecisions, booking: renderBooking, ideas: renderIdeas, photos: renderPhotos, guide: renderGuide,
   };
   function renderCurrent() {
     const active = $(".screen.active");

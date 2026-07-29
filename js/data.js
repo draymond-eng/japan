@@ -354,14 +354,19 @@ const TRIP = {
     { id: "i8", title: "Nakameguro river walk", city: "tokyo", note: "Trendy canal-side cafes even post-blossom." },
   ],
 
-  /* ---- Booking order (from the plan) -------------------------------------- */
+  /* ---- Booking timeline. timing: now | soon | later ----------------------- */
   bookingOrder: [
-    { id: "bk1", label: "Yama no Chaya (Hakone)", note: "Books out first — lock it now." },
-    { id: "bk2", label: "The Gion House (Kyoto)", note: "Both units, together." },
-    { id: "bk3", label: "Flights — Haneda round-trip", note: "4 from Chicago, 2 from DC." },
-    { id: "bk4", label: "Yuen Shinjuku (Tokyo)", note: "3 double rooms." },
-    { id: "bk5", label: "Shinkansen tickets", note: "Exactly 30 days before each leg — they don't open earlier." },
-    { id: "bk6", label: "Miyako Odori + Shibuya Sky + teamLab", note: "Timed-entry things that sell out." },
+    { id: "bk-pass",   label: "Passports valid 6+ months", note: "Everyone's passport must be valid well past the trip. If anyone needs a renewal, start now — it's the one thing you can't leave late.", timing: "now",   when: "Do this week" },
+    { id: "bk-hakone", label: "Yama no Chaya (Hakone)", note: "Top ryokan, very limited rooms — books out first. Grab all 3 rooms as soon as the calendar allows.", timing: "now", when: "Book now" },
+    { id: "bk-gion",   label: "The Gion House (Kyoto)", note: "Whole house that sleeps 6 — these go fast. Book both units together.", timing: "now", when: "Book now" },
+    { id: "bk-flights",label: "Flights — Haneda round-trip", note: "4 from Chicago, 2 from DC. April fares are open now; far easier to get 6 seats together early.", timing: "now", when: "Book now" },
+    { id: "bk-yuen",   label: "Yuen Shinjuku (Tokyo)", note: "3 double rooms — fine to lock in now.", timing: "now", when: "Book now" },
+    { id: "bk-miyako", label: "Miyako Odori tickets", note: "Geiko/maiko dance — tickets go on sale in early spring. Watch for the release.", timing: "soon", when: "~Feb–Mar 2027" },
+    { id: "bk-insurance", label: "Travel insurance", note: "Buy once flights are booked so the trip cost is covered.", timing: "soon", when: "After flights" },
+    { id: "bk-shink",  label: "Shinkansen seats", note: "Open EXACTLY 30 days before each leg — can't book earlier. Reserve all 6 seats together the day they open.", timing: "later", when: "~Mar 2027 · 30 days out" },
+    { id: "bk-timed",  label: "teamLab + Shibuya Sky", note: "Timed-entry and they sell out — book about a month ahead.", timing: "later", when: "~Mar 2027" },
+    { id: "bk-kaiseki",label: "Kaiseki dinner (Kikunoi / Hyotei)", note: "Decide the venue now in Decisions; reserve about a month out.", timing: "later", when: "~Mar 2027" },
+    { id: "bk-wifi",   label: "Pocket wifi / eSIM", note: "Sort a few weeks before — one pocket-wifi router can cover the whole group.", timing: "later", when: "A few weeks out" },
   ],
 
   /* ---- Packing list (late April = 55–72°F, dry, layers) ------------------- */
