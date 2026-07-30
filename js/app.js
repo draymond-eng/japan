@@ -1,5 +1,5 @@
 /* =============================================================================
-   Japan 2027 — app logic. Vanilla JS, no build step. State saved on-device
+   Japan 2027 - app logic. Vanilla JS, no build step. State saved on-device
    via localStorage (per phone). Renders every screen from window.TRIP.
    ========================================================================== */
 (function () {
@@ -54,7 +54,7 @@
   };
 
   /* =======================================================================
-     SYNC — shared data via the backend (Supabase). Degrades to local mode.
+     SYNC - shared data via the backend (Supabase). Degrades to local mode.
      ==================================================================== */
   const Sync = {
     async init() {
@@ -62,7 +62,7 @@
       SYNC.configured = !!(cfg.url && cfg.anonKey);
       if (!SYNC.configured) { renderAll(); return; } // genuinely local (no keys)
       renderAll(); // reflect "syncing…" copy immediately
-      // The Supabase SDK loads from a CDN — wait for it instead of giving up.
+      // The Supabase SDK loads from a CDN - wait for it instead of giving up.
       for (let i = 0; i < 30 && !(window.supabase && window.supabase.createClient); i++) {
         await new Promise((r) => setTimeout(r, 150));
       }
@@ -157,7 +157,7 @@
       state.weather = T.cities.map((c, i) => ({ city: c.id, name: c.name, emoji: c.emoji,
         temp: Math.round(arr[i]?.current?.temperature_2m), wx: wxEmoji(arr[i]?.current?.weather_code) }));
       if ($("#screen-home").classList.contains("active")) renderHome();
-    } catch (e) { /* offline — skip */ }
+    } catch (e) { /* offline - skip */ }
   }
   async function loadRate() {
     try {
@@ -167,7 +167,7 @@
         state.liveRate = data.rates.JPY;
         if ($("#screen-budget").classList.contains("active")) renderBudget();
       }
-    } catch (e) { /* offline — skip */ }
+    } catch (e) { /* offline - skip */ }
   }
   const effectiveRate = () => Number(state.liveRate) || T.meta.currency.perUSD || 150;
 
@@ -230,7 +230,7 @@
       ${T.meta.draft ? `<div class="card" style="border-color:var(--sakura-deep);background:#fdf3f5">
         <span class="pill draft">Proposed baseline</span>
         <p style="margin:10px 0 0;font-size:13.5px;color:var(--ink-soft)">
-          Nothing's locked — this is a starting point for the group to react to.
+          Nothing's locked - this is a starting point for the group to react to.
           Weigh in on the <b>${openDecisions} open decision${openDecisions === 1 ? "" : "s"}</b> before we meet about the itinerary.
         </p>
         <button class="btn primary" style="margin-top:12px;width:100%" data-go="decisions">🗳️ Cast your votes</button>
@@ -273,7 +273,7 @@
         <div style="display:flex;gap:10px;margin-top:8px">
           ${state.weather.map((w) => `<div style="flex:1;text-align:center">
             <div style="font-size:24px">${w.wx}</div>
-            <div style="font-family:var(--serif);font-weight:600;font-size:18px">${isFinite(w.temp) ? w.temp + "°" : "—"}</div>
+            <div style="font-family:var(--serif);font-weight:600;font-size:18px">${isFinite(w.temp) ? w.temp + "°" : "-"}</div>
             <div class="r-sub" style="font-size:11px">${esc(w.name)}</div></div>`).join("")}
         </div>
         <p class="r-sub" style="margin:10px 0 0">On the trip (late April): typically ~55–72°F and dry.</p>
@@ -345,7 +345,7 @@
     const filters = ["all", ...T.cities.map((c) => c.id)];
     s.innerHTML = `
       <div class="section-title">Itinerary</div>
-      <div class="section-sub">Tap a day to expand. Hit <b>＋ I'm in</b> on anything you want to join — everyone sees who's up for what.</div>
+      <div class="section-sub">Tap a day to expand. Hit <b>＋ I'm in</b> on anything you want to join - everyone sees who's up for what.</div>
       <div class="filters" id="itinFilters">
         ${filters.map((f) => `<button class="chip ${f === state.cityFilter ? "active" : ""}" data-city="${f}">${f === "all" ? "All" : cityName(f)}</button>`).join("")}
       </div>
@@ -421,7 +421,7 @@
     const s = $("#screen-map");
     s.innerHTML = `
       <div class="section-title">Places</div>
-      <div class="section-sub">The live map needs a connection — here's every pinned stop, by city. Tap any to open in Maps.</div>
+      <div class="section-sub">The live map needs a connection - here's every pinned stop, by city. Tap any to open in Maps.</div>
       ${T.cities.map((c) => {
         const pins = collectPins().filter((p) => p.city === c.id);
         return `<div class="card"><h3>${c.emoji} ${esc(c.name)}</h3>
@@ -502,26 +502,26 @@
       }).join("")}
       <div class="card">
         <h3>📋 Booking timeline</h3>
-        <p class="section-sub" style="margin:2px 0 12px">What to book and when — now lives in its own tab.</p>
+        <p class="section-sub" style="margin:2px 0 12px">What to book and when - now lives in its own tab.</p>
         <button class="btn primary" style="width:100%" data-go="booking">Open the Booking timeline</button>
       </div>`;
     s.querySelectorAll("[data-go]").forEach((b) => b.addEventListener("click", () => show(b.dataset.go)));
   }
 
   /* =======================================================================
-     BOOKING timeline (what to book, when — shared "booked" status)
+     BOOKING timeline (what to book, when - shared "booked" status)
      ==================================================================== */
   function renderBooking() {
     const s = $("#screen-booking");
     const buckets = [
-      { key: "now",   title: "Book now", sub: "Limited inventory — these reward moving early.", pill: "osaka" },
-      { key: "soon",  title: "Coming up", sub: "Opens in the next few months — get it on the radar.", pill: "kyoto" },
-      { key: "later", title: "Closer in", sub: "Can't be booked yet — opens ~30 days to a month before.", pill: "tokyo" },
+      { key: "now",   title: "Book now", sub: "Limited inventory - these reward moving early.", pill: "osaka" },
+      { key: "soon",  title: "Coming up", sub: "Opens in the next few months - get it on the radar.", pill: "kyoto" },
+      { key: "later", title: "Closer in", sub: "Can't be booked yet - opens ~30 days to a month before.", pill: "tokyo" },
     ];
     const doneCount = T.bookingOrder.filter((b) => (tally("booking", b.id)["done"] || []).length).length;
     s.innerHTML = `
       <div class="section-title">Booking timeline</div>
-      <div class="section-sub">Japan books in waves. Tap ✓ when something's done — ${SYNC.on ? "everyone sees it." : SYNC.configured ? "syncing…" : "saved on this phone."} ${doneCount}/${T.bookingOrder.length} booked.</div>
+      <div class="section-sub">Japan books in waves. Tap ✓ when something's done - ${SYNC.on ? "everyone sees it." : SYNC.configured ? "syncing…" : "saved on this phone."} ${doneCount}/${T.bookingOrder.length} booked.</div>
       ${buckets.map((bk) => {
         const items = T.bookingOrder.filter((b) => (b.timing || "later") === bk.key);
         if (!items.length) return "";
@@ -549,7 +549,7 @@
           }).join("")}
         </div>`;
       }).join("")}
-      <div class="foot-note">Ask the app "what should we book now?" — the answer's up top. 🗾</div>`;
+      <div class="foot-note">Ask the app "what should we book now?" - the answer's up top. 🗾</div>`;
     s.querySelectorAll("[data-book]").forEach((b) => b.addEventListener("click", () => setVote("booking", b.dataset.book, "done")));
   }
 
@@ -602,7 +602,7 @@
               </div>
               <div class="stay-check">${sel ? "◉" : "◯"}</div>
             </button>`;
-          }).join("") : `<div class="empty" style="padding:16px">No places submitted for ${esc(st.label)} yet — drop the first one in.</div>`}
+          }).join("") : `<div class="empty" style="padding:16px">No places submitted for ${esc(st.label)} yet - drop the first one in.</div>`}
           ${myCount < MAX_STAY_PROPOSALS
             ? `<button class="btn ghost" data-proposecity="${st.city}" style="width:100%;margin-top:2px">+ Submit a place in ${esc(st.label)} (${MAX_STAY_PROPOSALS - myCount} left)</button>`
             : `<div class="r-sub" style="text-align:center;padding:8px">You've used your ${MAX_STAY_PROPOSALS} submissions for ${esc(st.label)}.</div>`}
@@ -618,7 +618,7 @@
     const st = T.stays.find((x) => x.city === city);
     $("#proposeForm").innerHTML = `<div class="card" style="border-color:var(--ai)">
       <h3>Submit a place in ${esc(st.label)}</h3>
-      <p class="section-sub" style="margin:2px 0 12px">Found something on Booking / Airbnb / anywhere? Drop it in — the neighborhood cards above help you aim.</p>
+      <p class="section-sub" style="margin:2px 0 12px">Found something on Booking / Airbnb / anywhere? Drop it in - the neighborhood cards above help you aim.</p>
       <div class="expense-add">
         <input id="psName" placeholder="Hotel / house name" />
         <input id="psTag" placeholder="Neighborhood + vibe (e.g. Shibuya · boutique)" />
@@ -661,7 +661,7 @@
       const t = byId(f.traveler) || {};
       const line = [f.airline, f.flight_no].filter(Boolean).join(" ");
       const when = [f.date ? `${fmtDate(f.date).wd} ${fmtDate(f.date).mon} ${fmtDate(f.date).day}` : "", f.time].filter(Boolean).join(" · ");
-      const detail = [line, when].filter(Boolean).join(" · ") || "—";
+      const detail = [line, when].filter(Boolean).join(" · ") || "-";
       return `<div class="row">
         <span class="avatar" style="width:34px;height:34px;font-size:11px;${avatarBg(t)}">${avatarTxt(t)}</span>
         <div class="r-main"><div class="r-title">${esc((t.name || "").split(" ")[0])}${f.airport ? ` · ${esc(f.airport)}` : ""}</div>
@@ -686,11 +686,11 @@
       </div>`;
     s.innerHTML = `
       <div class="section-title">Flights & arrivals</div>
-      <div class="section-sub">${esc(T.flightsNote || "")} Everyone adds their own — ${SYNC.on ? "shared with the group." : SYNC.configured ? "syncing…" : "saved on this phone."}</div>
-      ${!state.me ? `<div class="card" style="border-color:var(--sakura-deep);background:#fdf3f5"><b>Tag yourself first</b> — tap "Who are you?" so your flights save to you. <button class="btn primary" id="flWho" style="margin-top:10px;width:100%">Set who I am</button></div>` : `
+      <div class="section-sub">${esc(T.flightsNote || "")} Everyone adds their own - ${SYNC.on ? "shared with the group." : SYNC.configured ? "syncing…" : "saved on this phone."}</div>
+      ${!state.me ? `<div class="card" style="border-color:var(--sakura-deep);background:#fdf3f5"><b>Tag yourself first</b> - tap "Who are you?" so your flights save to you. <button class="btn primary" id="flWho" style="margin-top:10px;width:100%">Set who I am</button></div>` : `
       <div class="card">
         <h3>✈️ Your flights</h3>
-        <p class="section-sub" style="margin:2px 0 12px">${esc((byId(state.me) || {}).name || "")} — fill in what you know; leave the rest blank.</p>
+        <p class="section-sub" style="margin:2px 0 12px">${esc((byId(state.me) || {}).name || "")} - fill in what you know; leave the rest blank.</p>
         <div class="check-cat" style="margin:0 0 8px">🛬 Arrival</div>
         ${fields("fa", "arrive")}
         <div class="check-cat" style="margin:18px 0 8px">🛫 Departure</div>
@@ -746,11 +746,11 @@
     const kayak = (r) => `https://www.kayak.com/flights/${r.from}-${r.to}/${D.depart}/${D.return}`;
     s.innerHTML = `
       <div class="section-title">Fares</div>
-      <div class="section-sub">Watch prices, log what you spot. Target: <b>$${T.fareTarget.toLocaleString()}/person</b> — book when it hits. ${SYNC.on ? "Log is shared." : SYNC.configured ? "Syncing…" : "Local for now."}</div>
+      <div class="section-sub">Watch prices, log what you spot. Target: <b>$${T.fareTarget.toLocaleString()}/person</b> - book when it hits. ${SYNC.on ? "Log is shared." : SYNC.configured ? "Syncing…" : "Local for now."}</div>
 
       <div class="card">
         <h3>📉 Set price alerts (free)</h3>
-        <p class="section-sub" style="margin:4px 0 12px">Open each route and tap <b>“Track prices”</b> on Google Flights — it emails you when the fare moves. Once per route does it.</p>
+        <p class="section-sub" style="margin:4px 0 12px">Open each route and tap <b>“Track prices”</b> on Google Flights - it emails you when the fare moves. Once per route does it.</p>
         ${T.fareRoutes.map((r) => `
           <div class="row" style="padding-bottom:6px">
             <div class="r-main"><div class="r-title">${esc(r.label)}</div><div class="r-sub">${esc(r.from)} → ${esc(r.to)} · ${esc(r.who)}</div></div>
@@ -788,7 +788,7 @@
         <div class="expense-add">
           <select id="fareRoute">${T.fareRoutes.map((r) => `<option value="${r.id}">${esc(r.label)}</option>`).join("")}</select>
           <input id="farePrice" type="number" inputmode="decimal" placeholder="Price per person (USD)" />
-          <input id="fareNote" placeholder="Note (airline, site…) — optional" />
+          <input id="fareNote" placeholder="Note (airline, site…) - optional" />
           <button class="btn primary" id="fareAdd">Log price</button>
         </div>
       </div>`;
@@ -840,7 +840,7 @@
         <h3>Trip estimate</h3>
         <div class="r-sub" style="font-size:13px">≈ <b>$${T.meta.estPerPerson.toLocaleString()}</b>/person · <b>$${T.meta.estGroup.toLocaleString()}</b> group. ${esc(T.meta.estNote)}</div>
       </div>` : `<div class="card">
-        <h3>Trip cost — TBD</h3>
+        <h3>Trip cost - TBD</h3>
         <div class="r-sub" style="font-size:13px">We'll fill in real numbers once flights and stays are booked. Use this tab to split and settle shared expenses as they come up.</div>
       </div>`}
 
@@ -899,7 +899,7 @@
   function settleText(nets) {
     const cred = Object.entries(nets).filter(([, v]) => v > 0.5).map(([id, v]) => ({ id, v }));
     const debt = Object.entries(nets).filter(([, v]) => v < -0.5).map(([id, v]) => ({ id, v: -v }));
-    if (!cred.length || !debt.length) return `<p class="section-sub" style="margin-top:-6px">No one owes anything yet — add some expenses.</p>`;
+    if (!cred.length || !debt.length) return `<p class="section-sub" style="margin-top:-6px">No one owes anything yet - add some expenses.</p>`;
     cred.sort((a, b) => b.v - a.v); debt.sort((a, b) => b.v - a.v);
     const lines = []; let i = 0, j = 0;
     const c = cred.map((x) => ({ ...x })), d = debt.map((x) => ({ ...x }));
@@ -978,8 +978,8 @@
     ];
     s.innerHTML = `
       <div class="section-title">Decisions</div>
-      <div class="section-sub">Open questions for the group. Tap your pick${SYNC.on ? " — everyone's votes tally live." : SYNC.configured ? " — syncing…" : ". <b>Local until the backend is connected.</b>"} Anyone can add one below.</div>
-      ${!state.me ? `<div class="card" style="border-color:var(--sakura-deep);background:#fdf3f5"><b>Tag yourself first</b> — tap "Who are you?" at the top so your votes are yours. <button class="btn primary" id="decWho" style="margin-top:10px;width:100%">Set who I am</button></div>` : ""}
+      <div class="section-sub">Open questions for the group. Tap your pick${SYNC.on ? " - everyone's votes tally live." : SYNC.configured ? " - syncing…" : ". <b>Local until the backend is connected.</b>"} Anyone can add one below.</div>
+      ${!state.me ? `<div class="card" style="border-color:var(--sakura-deep);background:#fdf3f5"><b>Tag yourself first</b> - tap "Who are you?" at the top so your votes are yours. <button class="btn primary" id="decWho" style="margin-top:10px;width:100%">Set who I am</button></div>` : ""}
       ${decisions.map((d) => {
         const mine = myVote("decision", d.id);
         const counts = tally("decision", d.id);
@@ -1109,7 +1109,7 @@
   }
 
   /* =======================================================================
-     PHOTOS (shared album — backend required)
+     PHOTOS (shared album - backend required)
      ==================================================================== */
   function renderPhotos() {
     const s = $("#screen-photos");
@@ -1123,7 +1123,7 @@
     }
     s.innerHTML = `
       <div class="section-title">Photos</div>
-      <div class="section-sub">The group's shared album. Add your shots — everyone sees them live.</div>
+      <div class="section-sub">The group's shared album. Add your shots - everyone sees them live.</div>
       <div class="card">
         <label class="btn primary" for="photoInput" style="display:block;text-align:center">📷 Add a photo</label>
         <input id="photoInput" type="file" accept="image/*" style="display:none" />
@@ -1135,7 +1135,7 @@
           <img src="${esc(p.url)}" alt="${esc(p.caption || "trip photo")}" loading="lazy" />
           ${p.caption ? `<div class="photo-cap">${esc(p.caption)}</div>` : ""}
           ${p.author === state.me ? `<button class="photo-del" data-photodel="${p.id}">✕</button>` : ""}
-        </div>`).join("") : `<div class="empty" style="grid-column:1/-1">No photos yet — be the first.</div>`}
+        </div>`).join("") : `<div class="empty" style="grid-column:1/-1">No photos yet - be the first.</div>`}
       </div>`;
     const input = $("#photoInput");
     input.addEventListener("change", async () => {
@@ -1144,7 +1144,7 @@
       $("#photoStatus").textContent = "Uploading…";
       const row = await Backend.uploadPhoto(file, $("#photoCaption").value.trim(), state.me);
       if (row) { state.photos.unshift(row); renderPhotos(); }
-      else $("#photoStatus").textContent = "Upload failed — try again.";
+      else $("#photoStatus").textContent = "Upload failed - try again.";
     });
     s.querySelectorAll("[data-photodel]").forEach((b) => b.addEventListener("click", async () => {
       const p = state.photos.find((x) => String(x.id) === String(b.dataset.photodel));
@@ -1165,7 +1165,7 @@
     ];
     s.innerHTML = `
       <div class="section-title">Notes</div>
-      <div class="section-sub">Shared running lists — anything the group should remember. ${SYNC.on ? "Synced." : SYNC.configured ? "Syncing…" : "Local for now."}</div>
+      <div class="section-sub">Shared running lists - anything the group should remember. ${SYNC.on ? "Synced." : SYNC.configured ? "Syncing…" : "Local for now."}</div>
       ${lists.map((L) => {
         const items = state.notes.filter((n) => (n.list || "note") === L.key);
         return `<div class="card">
@@ -1207,7 +1207,7 @@
   }
 
   /* =======================================================================
-     VAULT (confirmations — files + numbers)
+     VAULT (confirmations - files + numbers)
      ==================================================================== */
   function renderVault() {
     const s = $("#screen-vault");
@@ -1220,7 +1220,7 @@
     }
     s.innerHTML = `
       <div class="section-title">Vault</div>
-      <div class="section-sub">Every booking confirmation in one shared place — no more inbox archaeology.</div>
+      <div class="section-sub">Every booking confirmation in one shared place - no more inbox archaeology.</div>
       <div class="card">
         <h3>Add a confirmation</h3>
         <div class="expense-add">
@@ -1265,7 +1265,7 @@
     $("#confStatus").textContent = file ? "Uploading…" : "Saving…";
     const row = await Backend.addConfirmation({ category, label, confirmation_no, author }, file);
     if (row) { state.confirmations.unshift(row); renderVault(); }
-    else $("#confStatus").textContent = "Failed — try again.";
+    else $("#confStatus").textContent = "Failed - try again.";
   }
 
   /* =======================================================================
@@ -1320,12 +1320,12 @@
       $("#trSpeak").addEventListener("click", () => speak(out, to === "ja" ? "ja-JP" : "en-US"));
       $("#trCopy").addEventListener("click", () => { navigator.clipboard?.writeText(out); const c = $("#trCopy"); c.textContent = "Copied ✓"; setTimeout(() => c.textContent = "Copy", 1400); });
     } catch (e) {
-      R.innerHTML = `<div class="r-sub" style="margin-top:12px;color:var(--vermilion)">Couldn't translate — check your connection and try again.</div>`;
+      R.innerHTML = `<div class="r-sub" style="margin-top:12px;color:var(--vermilion)">Couldn't translate - check your connection and try again.</div>`;
     }
   }
 
   /* =======================================================================
-     MUSIC — embedded collaborative Spotify playlist
+     MUSIC - embedded collaborative Spotify playlist
      ==================================================================== */
   function renderMusic() {
     const s = $("#screen-music");
@@ -1334,7 +1334,7 @@
     const id = m ? m[1] : "";
     s.innerHTML = `
       <div class="section-title">Trip playlist</div>
-      <div class="section-sub">Our collaborative Spotify playlist. Add whatever gets you hyped for Japan — everyone can.</div>
+      <div class="section-sub">Our collaborative Spotify playlist. Add whatever gets you hyped for Japan - everyone can.</div>
       ${id ? `
         <div class="card" style="padding:10px">
           <iframe title="Spotify playlist" style="border-radius:12px;display:block" src="https://open.spotify.com/embed/playlist/${id}?utm_source=generator&theme=0" width="100%" height="440" frameborder="0" allow="autoplay; clipboard-write; encrypted-media; fullscreen; picture-in-picture" loading="lazy"></iframe>
@@ -1343,7 +1343,7 @@
         <div class="card" style="margin-top:14px">
           <h3>🎧 How to add</h3>
           <ol class="r-sub" style="margin:8px 0 0;padding-left:20px;line-height:2">
-            <li>Tap <b>Add songs in Spotify</b> above — it opens the playlist.</li>
+            <li>Tap <b>Add songs in Spotify</b> above - it opens the playlist.</li>
             <li>Hit <b>＋ / Add to this playlist</b> and search anything.</li>
             <li>Tap <b>Follow</b> so it lives in your library.</li>
           </ol>
@@ -1358,7 +1358,7 @@
     const s = $("#screen-guide");
     s.innerHTML = `
       <div class="section-title">Japan Guide</div>
-      <div class="section-sub">The stuff everyone would otherwise ask — answered once.</div>
+      <div class="section-sub">The stuff everyone would otherwise ask - answered once.</div>
       ${T.guide.map((g) => `<div class="guide-card">
         <div class="g-head"><span>${g.icon}</span> ${esc(g.title)}</div>
         <div class="g-body">${esc(g.body)}</div>
@@ -1396,7 +1396,7 @@
   $("#whoModal").addEventListener("click", (e) => { if (e.target.id === "whoModal") $("#whoModal").classList.remove("open"); });
 
   /* =======================================================================
-     ASSISTANT — ✨ trip chat, grounded in the live trip data
+     ASSISTANT - ✨ trip chat, grounded in the live trip data
      ==================================================================== */
   let chatLog = null;
   function aiContext() {
@@ -1414,12 +1414,12 @@
     if (chatLog == null) chatLog = LS.get("aiChat", []);
     s.innerHTML = `
       <div class="section-title">Assistant</div>
-      <div class="section-sub">Knows our trip — the itinerary, the votes, the stays. Ask it anything about Japan or the plan.</div>
+      <div class="section-sub">Knows our trip - the itinerary, the votes, the stays. Ask it anything about Japan or the plan.</div>
       <div id="chatFeed">
         ${chatLog.length ? chatLog.map((m) => `<div class="chat-msg ${m.role}">${esc(m.content)}</div>`).join("")
           : `<div class="card"><h3>✨ Try asking…</h3><div class="r-sub" style="line-height:2">
               “What's our most packed day, and how would you lighten it?”<br>
-              “Rainy day in Kyoto — what do we swap in?”<br>
+              “Rainy day in Kyoto - what do we swap in?”<br>
               “Where should we eat near Omoide Yokocho the night we land?”<br>
               “Is the Hakone onsen night worth the money?”</div></div>`}
       </div>
@@ -1450,11 +1450,11 @@
         body: JSON.stringify({ messages: chatLog.slice(-12), context: aiContext() }),
       });
       const data = await res.json().catch(() => ({}));
-      chatLog.push({ role: "assistant", content: data.ok ? (data.reply || "…") : "⚠️ " + (data.error || "Something went wrong — try again.") });
+      chatLog.push({ role: "assistant", content: data.ok ? (data.reply || "…") : "⚠️ " + (data.error || "Something went wrong - try again.") });
       LS.set("aiChat", chatLog.slice(-30));
       renderAssistant();
     } catch (e) {
-      chatLog.push({ role: "assistant", content: "⚠️ Couldn't reach the assistant — is the trip-assistant edge function deployed?" });
+      chatLog.push({ role: "assistant", content: "⚠️ Couldn't reach the assistant - is the trip-assistant edge function deployed?" });
       LS.set("aiChat", chatLog.slice(-30));
       renderAssistant();
     }
@@ -1485,7 +1485,7 @@
   loadWeather();
   loadRate();
 
-  // PWA service worker — AUTO-UPDATE so new builds appear on their own,
+  // PWA service worker - AUTO-UPDATE so new builds appear on their own,
   // with no manual cache clearing or re-adding the app.
   if ("serviceWorker" in navigator) {
     let refreshing = false;

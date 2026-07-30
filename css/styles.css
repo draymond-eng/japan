@@ -1,5 +1,5 @@
 /* =============================================================================
-   Japan 2027 — elevated design system.
+   Japan 2027 - elevated design system.
    Editorial travel journal × refined Japanese aesthetic:
    mincho serif display, warm washi paper with grain, sumi ink, deep indigo,
    restrained torii vermilion, a gold hairline, custom line-icon nav.
@@ -66,7 +66,7 @@ button { font-family: inherit; cursor: pointer; color: inherit; }
   position: sticky; top: 0; z-index: 40;
   display: flex; align-items: center; gap: 10px;
   padding: calc(13px + env(safe-area-inset-top, 0px)) 18px 13px;
-  background: var(--paper); /* opaque — avoids iOS sticky/backdrop-filter paint glitch */
+  background: var(--paper); /* opaque - avoids iOS sticky/backdrop-filter paint glitch */
   border-bottom: 1px solid var(--line);
 }
 .topbar .brand { display: flex; align-items: center; gap: 11px; }
@@ -86,7 +86,7 @@ button { font-family: inherit; cursor: pointer; color: inherit; }
 .screen.active { display: block; animation: rise .4s cubic-bezier(.2,.7,.2,1); }
 @keyframes rise { from { opacity: 0; transform: translateY(8px);} to {opacity:1; transform:none;} }
 
-/* Section headers — editorial: kicker rule + serif */
+/* Section headers - editorial: kicker rule + serif */
 .section-title {
   font-family: var(--serif); font-size: 23px; font-weight: 600; letter-spacing: .2px;
   margin: 8px 2px 14px; position: relative; padding-left: 14px;
@@ -373,7 +373,7 @@ button { font-family: inherit; cursor: pointer; color: inherit; }
   position: fixed; bottom: 0; left: 50%; transform: translateX(-50%);
   width: 100%; max-width: var(--maxw); z-index: 50;
   display: flex; justify-content: space-around; align-items: stretch;
-  background: #fffdf8; /* opaque — avoids iOS backdrop-filter detach glitch on scroll */
+  background: #fffdf8; /* opaque - avoids iOS backdrop-filter detach glitch on scroll */
   box-shadow: 0 -1px 0 var(--line), 0 -6px 20px -12px rgba(25,26,30,.2);
   border-top: 1px solid var(--line); padding-bottom: var(--safe-b);
 }

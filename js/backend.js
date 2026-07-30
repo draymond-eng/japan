@@ -1,5 +1,5 @@
 /* =============================================================================
-   Backend — Supabase data layer for shared trip data.
+   Backend - Supabase data layer for shared trip data.
    Falls back silently to local mode if config is empty or the SDK/offline.
    Exposes window.Backend. All methods are async and never throw to callers
    (they log + return safe empties) so the UI stays resilient.

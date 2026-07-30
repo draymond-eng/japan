@@ -1,5 +1,5 @@
 // =============================================================================
-// Japan 2027 — "trip-assistant" Edge Function.
+// Japan 2027 - "trip-assistant" Edge Function.
 // Chat-only: answers the crew's questions grounded in the trip context the
 // app sends along (itinerary, votes, stays, ideas). Never edits anything.
 //
@@ -42,7 +42,7 @@ Deno.serve(async (req) => {
     const { data: usage } = await supabase.from("assistant_usage").select("count").eq("id", 1).maybeSingle();
     if ((usage?.count ?? 0) >= MAX_MESSAGES) return json({ error: "The assistant has hit its message limit for this trip." }, 429);
 
-    const system = `You are the Japan 2027 trip assistant for a group of six friends (three couples) traveling Tokyo → Hakone → Kyoto, April 15–25 2027. You are a sharp, warm, well-traveled friend who knows Japan deeply. Be concise and concrete; give real opinions, not hedges. Ground answers in the trip context below — their actual itinerary, open votes, proposed stays, and ideas. When they ask about changes, describe the suggestion clearly so they can update the plan themselves (you cannot edit the app). Plain text only, no markdown headers.
+    const system = `You are the Japan 2027 trip assistant for a group of six friends (three couples) traveling Tokyo → Hakone → Kyoto, April 15–25 2027. You are a sharp, warm, well-traveled friend who knows Japan deeply. Be concise and concrete; give real opinions, not hedges. Ground answers in the trip context below - their actual itinerary, open votes, proposed stays, and ideas. When they ask about changes, describe the suggestion clearly so they can update the plan themselves (you cannot edit the app). Plain text only, no markdown headers. Never use an em dash ("\u2014"); use commas or periods instead.
 
 TRIP CONTEXT:
 ${JSON.stringify(context).slice(0, 24000)}`;
@@ -70,9 +70,9 @@ ${JSON.stringify(context).slice(0, 24000)}`;
       return json({ error: `Anthropic ${resp.status}: ${String(msg).slice(0, 220)}` }, 502);
     }
     const ai = await resp.json();
-    if (ai?.stop_reason === "max_tokens") return json({ error: "Answer was cut off — ask again." }, 502);
+    if (ai?.stop_reason === "max_tokens") return json({ error: "Answer was cut off - ask again." }, 502);
     const reply = ai?.content?.find((c: { type?: string }) => c?.type === "text")?.text ?? "";
-    if (!reply) return json({ error: "Empty answer — try again." }, 502);
+    if (!reply) return json({ error: "Empty answer - try again." }, 502);
 
     await supabase.from("assistant_usage").upsert({ id: 1, count: (usage?.count ?? 0) + 1 });
     return json({ ok: true, reply });
