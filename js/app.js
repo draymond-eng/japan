@@ -1396,6 +1396,71 @@
   $("#whoModal").addEventListener("click", (e) => { if (e.target.id === "whoModal") $("#whoModal").classList.remove("open"); });
 
   /* =======================================================================
+     ASSISTANT — ✨ trip chat, grounded in the live trip data
+     ==================================================================== */
+  let chatLog = null;
+  function aiContext() {
+    return {
+      trip: { title: TRIP.meta.title, dates: `${TRIP.meta.landJapan} to ${TRIP.meta.endDate}`, travelers: TRIP.travelers.map((t) => t.name), cities: TRIP.cities.map((c) => `${c.name} (${c.nights})`) },
+      itinerary: TRIP.days.map((d) => ({ date: d.date, city: d.city, title: d.title, summary: d.summary, items: (d.items || []).map((i) => `${i.time || ""} ${i.title}`.trim()) })),
+      open_votes: [...TRIP.decisions.map((d) => d.title), ...state.postedDecisions.map((d) => d.title)],
+      proposed_stays: state.proposedStays.map((p) => ({ city: p.city, name: p.name, tag: p.tag })),
+      ideas: [...TRIP.ideas.map((i) => i.title), ...state.postedIdeas.map((i) => i.title)],
+      neighborhood_guides: TRIP.neighborhoods.map((n) => `${n.city}: ${n.name}`),
+    };
+  }
+  function renderAssistant() {
+    const s = $("#screen-assistant");
+    if (chatLog == null) chatLog = LS.get("aiChat", []);
+    s.innerHTML = `
+      <div class="section-title">Assistant</div>
+      <div class="section-sub">Knows our trip — the itinerary, the votes, the stays. Ask it anything about Japan or the plan.</div>
+      <div id="chatFeed">
+        ${chatLog.length ? chatLog.map((m) => `<div class="chat-msg ${m.role}">${esc(m.content)}</div>`).join("")
+          : `<div class="card"><h3>✨ Try asking…</h3><div class="r-sub" style="line-height:2">
+              “What's our most packed day, and how would you lighten it?”<br>
+              “Rainy day in Kyoto — what do we swap in?”<br>
+              “Where should we eat near Omoide Yokocho the night we land?”<br>
+              “Is the Hakone onsen night worth the money?”</div></div>`}
+      </div>
+      <div class="card" style="position:sticky;bottom:calc(var(--nav-h) + 10px)">
+        <div style="display:flex;gap:8px">
+          <input id="chatInput" placeholder="Ask about the trip…" style="flex:1;padding:12px;border:1px solid var(--line);border-radius:var(--r-sm);font-size:15px;background:#fffdfa;color:var(--ink)" />
+          <button class="btn primary" id="chatSend">Send</button>
+        </div>
+        <div id="chatStatus" class="r-sub" style="margin-top:6px"></div>
+      </div>`;
+    $("#chatSend").addEventListener("click", sendChat);
+    $("#chatInput").addEventListener("keydown", (e) => { if (e.key === "Enter") sendChat(); });
+    if (chatLog.length) window.scrollTo(0, document.body.scrollHeight);
+  }
+  async function sendChat() {
+    const inp = $("#chatInput");
+    const text = inp.value.trim(); if (!text) return;
+    chatLog.push({ role: "user", content: text });
+    LS.set("aiChat", chatLog.slice(-30));
+    inp.value = "";
+    renderAssistant();
+    $("#chatStatus").textContent = "✨ Thinking…";
+    try {
+      const cfg = window.SUPABASE_CONFIG;
+      const res = await fetch(`${cfg.url}/functions/v1/trip-assistant`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json", "Authorization": "Bearer " + cfg.anonKey, "apikey": cfg.anonKey },
+        body: JSON.stringify({ messages: chatLog.slice(-12), context: aiContext() }),
+      });
+      const data = await res.json().catch(() => ({}));
+      chatLog.push({ role: "assistant", content: data.ok ? (data.reply || "…") : "⚠️ " + (data.error || "Something went wrong — try again.") });
+      LS.set("aiChat", chatLog.slice(-30));
+      renderAssistant();
+    } catch (e) {
+      chatLog.push({ role: "assistant", content: "⚠️ Couldn't reach the assistant — is the trip-assistant edge function deployed?" });
+      LS.set("aiChat", chatLog.slice(-30));
+      renderAssistant();
+    }
+  }
+
+  /* =======================================================================
      BOOT
      ==================================================================== */
   const RENDERERS = {
@@ -1403,7 +1468,7 @@
     flights: renderFlights, budget: renderBudget, packing: renderPacking,
     decisions: renderDecisions, booking: renderBooking, fares: renderFares,
     vault: renderVault, notes: renderNotes, translate: renderTranslate, music: renderMusic,
-    ideas: renderIdeas, photos: renderPhotos, guide: renderGuide,
+    ideas: renderIdeas, photos: renderPhotos, guide: renderGuide, assistant: renderAssistant,
   };
   function renderCurrent() {
     const active = $(".screen.active");

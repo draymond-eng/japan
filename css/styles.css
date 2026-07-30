@@ -420,3 +420,9 @@ button { font-family: inherit; cursor: pointer; color: inherit; }
   .quick-grid { grid-template-columns: repeat(3, 1fr); }
   .sheet-grid { grid-template-columns: repeat(3, 1fr); }
 }
+
+/* ---- Assistant chat ------------------------------------------------------- */
+.chat-msg { max-width: 88%; padding: 11px 14px; border-radius: 16px; margin-bottom: 10px;
+  font-size: 14px; line-height: 1.55; white-space: pre-wrap; word-break: break-word; box-shadow: var(--shadow); }
+.chat-msg.user { margin-left: auto; background: var(--ai); color: #fff; border-bottom-right-radius: 5px; }
+.chat-msg.assistant { margin-right: auto; background: var(--card); border: 1px solid var(--line); border-bottom-left-radius: 5px; }
