@@ -206,9 +206,57 @@
   $$(".sheet-item").forEach((t) => t.addEventListener("click", () => show(t.dataset.screen)));
 
   const openSheet = () => { $("#moreSheet").classList.add("open"); $("#sheetBackdrop").classList.add("open"); };
-  const closeSheet = () => { $("#moreSheet").classList.remove("open"); $("#sheetBackdrop").classList.remove("open"); };
-  $("#moreTab").addEventListener("click", openSheet);
+  const closeSheet = () => {
+    const sheet = $("#moreSheet");
+    sheet.classList.remove("open");
+    sheet.style.transform = "";
+    $("#sheetBackdrop").classList.remove("open");
+  };
+  // Tapping More again puts the sheet away, the same as tapping it opened it.
+  $("#moreTab").addEventListener("click", () => {
+    if ($("#moreSheet").classList.contains("open")) closeSheet(); else openSheet();
+  });
   $("#sheetBackdrop").addEventListener("click", closeSheet);
+
+  /* Any button anywhere can carry data-go="<screen>" and it just works. One
+     listener on the app, so a screen can never forget to wire its own. */
+  (function bindGoDelegate() {
+    const app = document.querySelector(".app") || document.body;
+    app.addEventListener("click", (e) => {
+      const go = e.target.closest("[data-go]");
+      if (!go) return;
+      e.stopPropagation();
+      show(go.dataset.go);
+    });
+  })();
+
+  /* The handle looks like every drag-to-dismiss pill on a phone, so it has to
+     work like one: tap closes it, and a drag down follows your thumb. */
+  (function bindSheetGrab() {
+    const hit = $("#sheetGrab"), sheet = $("#moreSheet");
+    if (!hit || !sheet) return;
+    let startY = null, dy = 0;
+    hit.addEventListener("click", (e) => { e.preventDefault(); if (dy < 6) closeSheet(); });
+    const down = (y) => { startY = y; dy = 0; sheet.style.transition = "none"; };
+    const move = (y) => {
+      if (startY == null) return;
+      dy = Math.max(0, y - startY);
+      sheet.style.transform = `translateX(-50%) translateY(${dy}px)`;
+    };
+    const up = () => {
+      if (startY == null) return;
+      startY = null;
+      sheet.style.transition = "";
+      if (dy > 60) closeSheet(); else sheet.style.transform = "";
+    };
+    hit.addEventListener("touchstart", (e) => down(e.touches[0].clientY), { passive: true });
+    hit.addEventListener("touchmove", (e) => { move(e.touches[0].clientY); if (dy > 4) e.preventDefault(); }, { passive: false });
+    hit.addEventListener("touchend", up);
+    hit.addEventListener("touchcancel", up);
+    hit.addEventListener("pointerdown", (e) => { if (e.pointerType !== "touch") down(e.clientY); });
+    window.addEventListener("pointermove", (e) => { if (e.pointerType !== "touch") move(e.clientY); });
+    window.addEventListener("pointerup", (e) => { if (e.pointerType !== "touch") up(); });
+  })();
 
   /* =======================================================================
      HOME
@@ -301,7 +349,6 @@
 
       <div class="foot-note">Built for the crew · everything syncs live · edit anytime</div>
     `;
-    s.querySelectorAll("[data-go]").forEach((b) => b.addEventListener("click", () => show(b.dataset.go)));
     const cl = $("#copyLink"); if (cl) cl.addEventListener("click", () => {
       navigator.clipboard?.writeText(location.origin + location.pathname).then(() => { cl.textContent = "Copied ✓"; setTimeout(() => cl.textContent = "Copy link", 1500); }).catch(() => {});
     });
@@ -505,7 +552,6 @@
         <p class="section-sub" style="margin:2px 0 12px">What to book and when - now lives in its own tab.</p>
         <button class="btn primary" style="width:100%" data-go="booking">Open the Booking timeline</button>
       </div>`;
-    s.querySelectorAll("[data-go]").forEach((b) => b.addEventListener("click", () => show(b.dataset.go)));
   }
 
   /* =======================================================================
