@@ -36,7 +36,72 @@
         await client.from("votes").upsert({ kind, topic, choice, voter }, { onConflict: "kind,topic,voter" });
       }
       return true;
-    } catch (e) { console.warn("castVote", e); return false; }
+    } catch (e) {
+      writeFailed("castVote", e, choice == null
+        ? { kind: "removeBy", table: "votes", match: { kind, topic, voter } }
+        : { kind: "upsert", table: "votes", row: { kind, topic, choice, voter }, opts: { onConflict: "kind,topic,voter" } });
+      return false;
+    }
+  }
+
+  /* ---- Failed writes -----------------------------------------------------
+     A trip happens on planes and foreign SIMs. A write that fails is parked
+     here, kept across app restarts, and replayed in order when the connection
+     comes back. Reads are never queued; stale is fine, lost is not.
+     ------------------------------------------------------------------------ */
+  const Q_KEY = "jp_write_queue";
+  let queue = [];
+  let flushing = false;
+  let onWriteFail = null, onQueueChange = null;
+  const uid = () => (crypto.randomUUID ? crypto.randomUUID()
+    : "xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx".replace(/[xy]/g, (c) => {
+        const r = Math.random() * 16 | 0; return (c === "x" ? r : (r & 0x3 | 0x8)).toString(16); }));
+  try { queue = JSON.parse(localStorage.getItem(Q_KEY) || "[]") || []; } catch { queue = []; }
+  function saveQueue() {
+    try { localStorage.setItem(Q_KEY, JSON.stringify(queue.slice(-200))); } catch { /* full */ }
+    try { if (onQueueChange) onQueueChange(queue.length); } catch { /* never break a write */ }
+  }
+  function writeFailed(what, e, op) {
+    console.warn(what, e);
+    if (op) {
+      // repeated edits to the same row collapse, so a slow link does not
+      // replay every save
+      if (op.kind === "update") {
+        const prev = queue.find((o) => o.kind === "update" && o.table === op.table && String(o.id) === String(op.id));
+        if (prev) { prev.patch = { ...prev.patch, ...op.patch }; saveQueue(); }
+        else { queue.push(op); saveQueue(); }
+      } else { queue.push(op); saveQueue(); }
+    }
+    try { if (onWriteFail) onWriteFail(what, e); } catch { /* noop */ }
+  }
+  const must = async (q) => { const r = await q; if (r && r.error) throw r.error; return r; };
+  async function runOp(op) {
+    switch (op.kind) {
+      case "insert": await must(client.from(op.table).insert(op.row)); return;
+      case "update": await must(client.from(op.table).update(op.patch).eq("id", op.id)); return;
+      case "remove": await must(client.from(op.table).delete().eq("id", op.id)); return;
+      case "removeBy": await must(client.from(op.table).delete().match(op.match)); return;
+      case "upsert": await must(client.from(op.table).upsert(op.row, op.opts || {})); return;
+      default: return;
+    }
+  }
+  /* Replay in order and stop at the first failure, so a later write can never
+     land before the earlier one it depends on. */
+  async function flushQueue() {
+    if (flushing || !client || !queue.length) return { sent: 0, left: queue.length };
+    flushing = true;
+    let sent = 0;
+    try {
+      while (queue.length) {
+        try { await runOp(queue[0]); } catch (e) { break; }
+        queue.shift(); sent++; saveQueue();
+      }
+    } finally { flushing = false; }
+    return { sent, left: queue.length };
+  }
+  if (typeof window !== "undefined") {
+    window.addEventListener("online", () => { flushQueue(); });
+    setInterval(() => { if (queue.length && navigator.onLine !== false) flushQueue(); }, 20000);
   }
 
   /* ---- Expenses ----------------------------------------------------------- */
@@ -45,12 +110,15 @@
     catch (e) { console.warn("fetchExpenses", e); return []; }
   }
   async function addExpense(row) {
-    try { const { data, error } = await client.from("expenses").insert(row).select().single(); if (error) throw error; return data; }
-    catch (e) { console.warn("addExpense", e); return null; }
+    // give the row its id up front so the screen, the queue and the
+    // database agree on it even when the write only lands later
+    const withId = row && row.id ? row : { ...row, id: uid() };
+    try { const { data, error } = await client.from("expenses").insert(withId).select().single(); if (error) throw error; return data; }
+    catch (e) { writeFailed("addExpense", e, { kind: "insert", table: "expenses", row: withId }); return { ...withId, _pending: true }; }
   }
   async function removeExpense(id) {
     try { await client.from("expenses").delete().eq("id", id); return true; }
-    catch (e) { console.warn("removeExpense", e); return false; }
+    catch (e) { writeFailed("removeExpense", e, { kind: "remove", table: "expenses", id }); return false; }
   }
 
   /* ---- Posted ideas ------------------------------------------------------- */
@@ -59,12 +127,15 @@
     catch (e) { console.warn("fetchIdeas", e); return []; }
   }
   async function addIdea(row) {
-    try { const { data, error } = await client.from("ideas").insert(row).select().single(); if (error) throw error; return data; }
-    catch (e) { console.warn("addIdea", e); return null; }
+    // give the row its id up front so the screen, the queue and the
+    // database agree on it even when the write only lands later
+    const withId = row && row.id ? row : { ...row, id: uid() };
+    try { const { data, error } = await client.from("ideas").insert(withId).select().single(); if (error) throw error; return data; }
+    catch (e) { writeFailed("addIdea", e, { kind: "insert", table: "ideas", row: withId }); return { ...withId, _pending: true }; }
   }
   async function removeIdea(id) {
     try { await client.from("ideas").delete().eq("id", id); return true; }
-    catch (e) { console.warn("removeIdea", e); return false; }
+    catch (e) { writeFailed("removeIdea", e, { kind: "remove", table: "ideas", id }); return false; }
   }
 
   /* ---- Decisions (group-submitted polls) ---------------------------------- */
@@ -73,12 +144,15 @@
     catch (e) { console.warn("fetchDecisions", e); return []; }
   }
   async function addDecision(row) {
-    try { const { data, error } = await client.from("decisions").insert(row).select().single(); if (error) throw error; return data; }
-    catch (e) { console.warn("addDecision", e); return null; }
+    // give the row its id up front so the screen, the queue and the
+    // database agree on it even when the write only lands later
+    const withId = row && row.id ? row : { ...row, id: uid() };
+    try { const { data, error } = await client.from("decisions").insert(withId).select().single(); if (error) throw error; return data; }
+    catch (e) { writeFailed("addDecision", e, { kind: "insert", table: "decisions", row: withId }); return { ...withId, _pending: true }; }
   }
   async function removeDecision(id) {
     try { await client.from("decisions").delete().eq("id", id); return true; }
-    catch (e) { console.warn("removeDecision", e); return false; }
+    catch (e) { writeFailed("removeDecision", e, { kind: "remove", table: "decisions", id }); return false; }
   }
 
   /* ---- Fares (logged flight prices over time) ----------------------------- */
@@ -87,12 +161,15 @@
     catch (e) { console.warn("fetchFares", e); return []; }
   }
   async function addFare(row) {
-    try { const { data, error } = await client.from("fares").insert(row).select().single(); if (error) throw error; return data; }
-    catch (e) { console.warn("addFare", e); return null; }
+    // give the row its id up front so the screen, the queue and the
+    // database agree on it even when the write only lands later
+    const withId = row && row.id ? row : { ...row, id: uid() };
+    try { const { data, error } = await client.from("fares").insert(withId).select().single(); if (error) throw error; return data; }
+    catch (e) { writeFailed("addFare", e, { kind: "insert", table: "fares", row: withId }); return { ...withId, _pending: true }; }
   }
   async function removeFare(id) {
     try { await client.from("fares").delete().eq("id", id); return true; }
-    catch (e) { console.warn("removeFare", e); return false; }
+    catch (e) { writeFailed("removeFare", e, { kind: "remove", table: "fares", id }); return false; }
   }
 
   /* ---- Notes / omiyage (shared running lists) ----------------------------- */
@@ -101,16 +178,19 @@
     catch (e) { console.warn("fetchNotes", e); return []; }
   }
   async function addNote(row) {
-    try { const { data, error } = await client.from("notes").insert(row).select().single(); if (error) throw error; return data; }
-    catch (e) { console.warn("addNote", e); return null; }
+    // give the row its id up front so the screen, the queue and the
+    // database agree on it even when the write only lands later
+    const withId = row && row.id ? row : { ...row, id: uid() };
+    try { const { data, error } = await client.from("notes").insert(withId).select().single(); if (error) throw error; return data; }
+    catch (e) { writeFailed("addNote", e, { kind: "insert", table: "notes", row: withId }); return { ...withId, _pending: true }; }
   }
   async function updateNote(id, patch) {
     try { await client.from("notes").update(patch).eq("id", id); return true; }
-    catch (e) { console.warn("updateNote", e); return false; }
+    catch (e) { writeFailed("updateNote", e, { kind: "update", table: "notes", id, patch }); return false; }
   }
   async function removeNote(id) {
     try { await client.from("notes").delete().eq("id", id); return true; }
-    catch (e) { console.warn("removeNote", e); return false; }
+    catch (e) { writeFailed("removeNote", e, { kind: "remove", table: "notes", id }); return false; }
   }
 
   /* ---- Confirmations vault (files + numbers) ------------------------------ */
@@ -131,11 +211,11 @@
       const { data, error } = await client.from("confirmations").insert({ ...row, path, url }).select().single();
       if (error) throw error;
       return data;
-    } catch (e) { console.warn("addConfirmation", e); return null; }
+    } catch (e) { writeFailed("addConfirmation", e, { kind: "insert", table: "confirmations", row: withId }); return { ...withId, _pending: true }; }
   }
   async function removeConfirmation(row) {
     try { if (row.path) await client.storage.from(BUCKET).remove([row.path]); await client.from("confirmations").delete().eq("id", row.id); return true; }
-    catch (e) { console.warn("removeConfirmation", e); return false; }
+    catch (e) { writeFailed("removeConfirmation", e, { kind: "remove", table: "confirmations", id }); return false; }
   }
 
   /* ---- Flights (one row per traveler + direction) ------------------------- */
@@ -145,11 +225,14 @@
   }
   async function upsertFlight(row) {
     try { const { data, error } = await client.from("flights").upsert(row, { onConflict: "traveler,dir" }).select().single(); if (error) throw error; return data; }
-    catch (e) { console.warn("upsertFlight", e); return null; }
+    catch (e) {
+      writeFailed("upsertFlight", e, { kind: "upsert", table: "flights", row, opts: { onConflict: "traveler,dir" } });
+      return { ...row, _pending: true };
+    }
   }
   async function removeFlight(traveler, dir) {
     try { await client.from("flights").delete().match({ traveler, dir }); return true; }
-    catch (e) { console.warn("removeFlight", e); return false; }
+    catch (e) { writeFailed("removeFlight", e, { kind: "removeBy", table: "flights", match: { traveler, dir } }); return false; }
   }
 
   /* ---- Proposed stay options (group-submitted hotels) --------------------- */
@@ -158,12 +241,15 @@
     catch (e) { console.warn("fetchStayOptions", e); return []; }
   }
   async function addStayOption(row) {
-    try { const { data, error } = await client.from("stay_options").insert(row).select().single(); if (error) throw error; return data; }
-    catch (e) { console.warn("addStayOption", e); return null; }
+    // give the row its id up front so the screen, the queue and the
+    // database agree on it even when the write only lands later
+    const withId = row && row.id ? row : { ...row, id: uid() };
+    try { const { data, error } = await client.from("stay_options").insert(withId).select().single(); if (error) throw error; return data; }
+    catch (e) { writeFailed("addStayOption", e, { kind: "insert", table: "stay_options", row: withId }); return { ...withId, _pending: true }; }
   }
   async function removeStayOption(id) {
     try { await client.from("stay_options").delete().eq("id", id); return true; }
-    catch (e) { console.warn("removeStayOption", e); return false; }
+    catch (e) { writeFailed("removeStayOption", e, { kind: "remove", table: "stay_options", id }); return false; }
   }
 
   /* ---- Photos (Storage + table) ------------------------------------------ */
@@ -183,14 +269,14 @@
         .select().single();
       if (error) throw error;
       return data;
-    } catch (e) { console.warn("uploadPhoto", e); return null; }
+    } catch (e) { writeFailed("uploadPhoto", e); return null; }
   }
   async function removePhoto(row) {
     try {
       if (row.path) await client.storage.from(BUCKET).remove([row.path]);
       await client.from("photos").delete().eq("id", row.id);
       return true;
-    } catch (e) { console.warn("removePhoto", e); return false; }
+    } catch (e) { writeFailed("removePhoto", e, { kind: "remove", table: "photos", id }); return false; }
   }
 
   /* ---- Realtime: one channel, fire callback on any change ----------------- */
@@ -213,6 +299,9 @@
 
   window.Backend = {
     init, isReady: () => ready,
+    pending: () => queue.length, flush: flushQueue,
+    onQueueChange: (cb) => { onQueueChange = cb; },
+    onWriteError: (cb) => { onWriteFail = cb; },
     fetchVotes, castVote,
     fetchExpenses, addExpense, removeExpense,
     fetchIdeas, addIdea, removeIdea,

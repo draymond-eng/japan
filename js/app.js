@@ -258,6 +258,66 @@
     window.addEventListener("pointerup", (e) => { if (e.pointerType !== "touch") up(); });
   })();
 
+
+  /* ---- Saving, and taking it back ------------------------------------------
+     Nothing you do is lost to a bad connection: failed writes are parked in a
+     queue that survives closing the app, and this bar shows what is waiting.
+     Deleting offers a few seconds to change your mind.
+     -------------------------------------------------------------------------- */
+  function saveBarEl() {
+    let bar = document.getElementById("saveBar");
+    if (!bar) {
+      bar = document.createElement("div");
+      bar.id = "saveBar"; bar.className = "save-bar";
+      document.body.appendChild(bar);
+    }
+    return bar;
+  }
+  function showPending(n) {
+    const bar = saveBarEl();
+    if (!n) {
+      if (bar.classList.contains("open")) {
+        bar.className = "save-bar done open";
+        bar.innerHTML = "<span>\u2713 Everything is saved.</span>";
+        setTimeout(() => { bar.className = "save-bar"; }, 2200);
+      }
+      return;
+    }
+    bar.className = "save-bar open";
+    bar.innerHTML = `<span>${navigator.onLine === false ? "\u{1F4E1} Offline." : "\u23F3"} ${n} change${n === 1 ? "" : "s"} waiting to sync. Nothing is lost.</span>
+      <button class="btn" id="saveRetry">Try now</button>`;
+    document.getElementById("saveRetry").addEventListener("click", async () => {
+      document.getElementById("saveRetry").textContent = "Syncing\u2026";
+      const r = await Backend.flush();
+      if (r && r.left) { document.getElementById("saveRetry").textContent = "Still offline"; setTimeout(() => showPending(r.left), 1400); }
+      else showPending(0);
+    });
+  }
+  if (window.Backend && Backend.onQueueChange) {
+    Backend.onQueueChange((n) => showPending(n));
+    if (Backend.pending && Backend.pending()) showPending(Backend.pending());
+    window.addEventListener("online", () => Backend.flush());
+  }
+
+  let undoTimer = null;
+  function offerUndo(what, restore) {
+    let el = document.getElementById("undoBar");
+    if (!el) {
+      el = document.createElement("div");
+      el.id = "undoBar"; el.className = "undo-bar";
+      document.body.appendChild(el);
+    }
+    clearTimeout(undoTimer);
+    el.innerHTML = `<span>${what} deleted</span><button class="btn" id="undoGo">Undo</button>`;
+    el.classList.add("open");
+    const close = () => { el.classList.remove("open"); clearTimeout(undoTimer); };
+    document.getElementById("undoGo").addEventListener("click", async () => {
+      close();
+      try { await restore(); } catch (e) { console.warn("undo", e); }
+    });
+    undoTimer = setTimeout(close, 7000);
+  }
+
   /* =======================================================================
      HOME
      ==================================================================== */
@@ -1091,9 +1151,14 @@
     renderDecisions();
   }
   async function removePostedDecision(id) {
+    const row = state.postedDecisions.find((x) => String(x.id) === String(id));
     state.postedDecisions = state.postedDecisions.filter((x) => String(x.id) !== String(id));
     if (SYNC.on) await Backend.removeDecision(id); else LS.set("postedDecisions", state.postedDecisions);
     renderDecisions();
+    if (row) offerUndo(row.title || "Question", async () => {
+      const back = SYNC.on ? await Backend.addDecision(row) : row;
+      if (back) { state.postedDecisions.push(back); if (!SYNC.on) LS.set("postedDecisions", state.postedDecisions); renderDecisions(); }
+    });
   }
 
   /* =======================================================================
@@ -1149,9 +1214,14 @@
     renderIdeas();
   }
   async function removePostedIdea(id) {
+    const row = state.postedIdeas.find((x) => String(x.id) === String(id));
     state.postedIdeas = state.postedIdeas.filter((x) => String(x.id) !== String(id));
     if (SYNC.on) await Backend.removeIdea(id); else LS.set("postedIdeas", state.postedIdeas);
     renderIdeas();
+    if (row) offerUndo(row.title || "Idea", async () => {
+      const back = SYNC.on ? await Backend.addIdea(row) : row;
+      if (back) { state.postedIdeas.push(back); if (!SYNC.on) LS.set("postedIdeas", state.postedIdeas); renderIdeas(); }
+    });
   }
 
   /* =======================================================================
@@ -1247,9 +1317,14 @@
     renderNotes();
   }
   async function removeNote(id) {
+    const row = state.notes.find((x) => String(x.id) === String(id));
     state.notes = state.notes.filter((x) => String(x.id) !== String(id));
     if (SYNC.on) await Backend.removeNote(id); else LS.set("notesLocal", state.notes);
     renderNotes();
+    if (row) offerUndo(row.text || "Note", async () => {
+      const back = SYNC.on ? await Backend.addNote(row) : row;
+      if (back) { state.notes.push(back); if (!SYNC.on) LS.set("notesLocal", state.notes); renderNotes(); }
+    });
   }
 
   /* =======================================================================
@@ -1420,11 +1495,16 @@
      ==================================================================== */
   function renderWhoami() {
     const btn = $("#whoamiName"), av = $("#whoamiAvatar");
-    if (state.me) {
-      const t = byId(state.me);
+    // A stale id in storage, from a roster that has since changed, used to take
+    // the whole app down here. Fall back to asking who you are instead.
+    const t = state.me ? byId(state.me) : null;
+    if (t) {
       btn.textContent = t.name.split(" ")[0];
       av.innerHTML = `<span class="avatar" style="width:26px;height:26px;font-size:10px;border-width:1.5px;${avatarBg(t)}">${avatarTxt(t)}</span>`;
-    } else { btn.textContent = "Who are you?"; av.innerHTML = "👤"; }
+    } else {
+      if (state.me) { state.me = null; save(); }
+      btn.textContent = "Who are you?"; av.innerHTML = "👤";
+    }
   }
   function openWho() {
     const box = $("#whoOptions");
