@@ -9,7 +9,10 @@
 //   ANTHROPIC_API_KEY = your key from console.anthropic.com
 //
 // Guard: total message cap (assistant_usage table) so a leaked URL can't
-// run up the bill. Run the setup SQL once (see README / chat).
+// run up the bill. The table is OPTIONAL. Without it the function still works,
+// it just cannot enforce the cap, so create it when you get a minute:
+//   create table if not exists public.assistant_usage (id int primary key, count int default 0);
+//   alter table public.assistant_usage enable row level security;
 // =============================================================================
 import { createClient } from "npm:@supabase/supabase-js@2";
 
@@ -37,10 +40,16 @@ Deno.serve(async (req) => {
       .map((m: Record<string, unknown>) => ({ role: m.role, content: String(m.content).slice(0, 4000) }));
     if (!history.length || history[history.length - 1].role !== "user") return json({ error: "No message to answer." }, 400);
 
-    // Usage guard
-    const supabase = createClient(Deno.env.get("SUPABASE_URL")!, Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!);
-    const { data: usage } = await supabase.from("assistant_usage").select("count").eq("id", 1).maybeSingle();
-    if ((usage?.count ?? 0) >= MAX_MESSAGES) return json({ error: "The assistant has hit its message limit for this trip." }, 429);
+    /* Usage guard. A missing table must not take the assistant down with it,
+       so a failed read means "no cap known" rather than "no answer". */
+    let supabase = null, used: number | null = null;
+    try {
+      supabase = createClient(Deno.env.get("SUPABASE_URL")!, Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!);
+      const { data, error } = await supabase.from("assistant_usage").select("count").eq("id", 1).maybeSingle();
+      if (error) { console.warn("assistant_usage unavailable, running without a cap:", error.message); supabase = null; }
+      else used = data?.count ?? 0;
+    } catch (e) { console.warn("assistant_usage unavailable:", e); supabase = null; }
+    if (used != null && used >= MAX_MESSAGES) return json({ error: "The assistant has hit its message limit for this trip." }, 429);
 
     const system = `You are the Japan 2027 trip assistant for a group of six friends (three couples) traveling Tokyo → Hakone → Kyoto, April 15–25 2027. You are a sharp, warm, well-traveled friend who knows Japan deeply. Be concise and concrete; give real opinions, not hedges. Ground answers in the trip context below - their actual itinerary, open votes, proposed stays, and ideas. When they ask about changes, describe the suggestion clearly so they can update the plan themselves (you cannot edit the app). Plain text only, no markdown headers. Never use an em dash ("\u2014"); use commas or periods instead.
 
@@ -74,7 +83,10 @@ ${JSON.stringify(context).slice(0, 24000)}`;
     const reply = ai?.content?.find((c: { type?: string }) => c?.type === "text")?.text ?? "";
     if (!reply) return json({ error: "Empty answer - try again." }, 502);
 
-    await supabase.from("assistant_usage").upsert({ id: 1, count: (usage?.count ?? 0) + 1 });
+    if (supabase && used != null) {
+      try { await supabase.from("assistant_usage").upsert({ id: 1, count: used + 1 }); }
+      catch (e) { console.warn("could not record usage:", e); }
+    }
     return json({ ok: true, reply });
   } catch (e) {
     console.error(e);
