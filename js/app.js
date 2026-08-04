@@ -1563,6 +1563,30 @@
       neighborhood_guides: TRIP.neighborhoods.map((n) => `${n.city}: ${n.name}`),
     };
   }
+  /* ---- Reading an assistant reply ------------------------------------------
+     The model is told to skip markdown and never to use an em dash. It mostly
+     listens, and "mostly" is not a standard. So the answer is cleaned on the
+     way in rather than hoped for: dashes become the punctuation they were
+     standing in for, and the bold markers that do slip through get rendered
+     instead of shown as asterisks.
+     ------------------------------------------------------------------------ */
+  function deDash(t) {
+    return String(t == null ? "" : t)
+      // " word - word " reads fine; the em dash is the thing to lose
+      .replace(/\s*\u2014\s*/g, ", ")
+      .replace(/\s*\u2013\s*/g, " to ")
+      .replace(/,\s*,/g, ",")
+      .replace(/,\s*([.!?;:])/g, "$1");
+  }
+  /* Escape first, then promote the few markers worth showing. Order matters:
+     the other way round would let a reply inject markup. */
+  function richText(t) {
+    let h = esc(deDash(t));
+    h = h.replace(/\*\*([^*\n]+)\*\*/g, "<b>$1</b>");
+    h = h.replace(/^\s*#{1,6}\s*(.+)$/gm, "<b>$1</b>");
+    h = h.replace(/^\s*[-*\u2022]\s+(.+)$/gm, "\u00b7 $1");
+    return h;
+  }
   function renderAssistant() {
     const s = $("#screen-assistant");
     if (chatLog == null) chatLog = LS.get("aiChat", []);
@@ -1570,7 +1594,7 @@
       <div class="section-title">Assistant</div>
       <div class="section-sub">Knows our trip - the itinerary, the votes, the stays. Ask it anything about Japan or the plan.</div>
       <div id="chatFeed">
-        ${chatLog.length ? chatLog.map((m) => `<div class="chat-msg ${m.role}">${esc(m.content)}</div>`).join("")
+        ${chatLog.length ? chatLog.map((m) => `<div class="chat-msg ${m.role}">${m.role === "assistant" ? richText(m.content) : esc(m.content)}</div>`).join("")
           : `<div class="card"><h3>✨ Try asking…</h3><div class="r-sub" style="line-height:2">
               “What's our most packed day, and how would you lighten it?”<br>
               “Rainy day in Kyoto - what do we swap in?”<br>
@@ -2032,7 +2056,7 @@
 
   /* The model is asked for a fixed shape, but a reply is still a reply. */
   function parseOutfitReply(text) {
-    const lines = String(text).split(/\n+/).map((l) => l.trim()).filter(Boolean);
+    const lines = deDash(text).split(/\n+/).map((l) => l.trim()).filter(Boolean);
     const options = [], out = { options, bring: "" };
     lines.forEach((l) => {
       const o = l.match(/^\**\s*option\s*\d*\s*[:.)-]\s*(.+)$/i);
