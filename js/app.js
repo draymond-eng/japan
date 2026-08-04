@@ -321,12 +321,35 @@
   /* =======================================================================
      HOME
      ==================================================================== */
+  /* Ten petals over the hero. It is a trip built around late April, so this is
+     the one bit of decoration that is actually about the trip. Slow, faint,
+     and gone entirely for anyone who asked for less motion. */
+  const PETAL_SEED = [
+    [4, 0, 15, -6], [17, 3.4, 18, 9], [29, 1.1, 13, -11], [38, 6.2, 20, 7], [51, 2.7, 16, -8],
+    [63, 8.1, 14, 10], [72, 4.5, 19, -5], [81, 0.6, 17, 8], [90, 5.8, 15, -9], [96, 7.3, 21, 6],
+  ];
+  function petals() {
+    return `<div class="petals" aria-hidden="true">${PETAL_SEED.map(([x, delay, dur, drift]) =>
+      `<i style="left:${x}%;animation-delay:-${delay}s;animation-duration:${dur}s;--drift:${drift}px"></i>`).join("")}</div>`;
+  }
+  /* Japan is Japan, so the header is lit by Tokyo's clock rather than yours. */
+  function paintTimeOfDay() {
+    let h = new Date().getHours();
+    try {
+      h = +new Intl.DateTimeFormat("en-US", { timeZone: "Asia/Tokyo", hour: "numeric", hour12: false }).format(new Date());
+      if (h === 24) h = 0;
+    } catch (e) { /* a broken Intl is not worth a broken header */ }
+    const tod = h < 5 ? "night" : h < 9 ? "dawn" : h < 17 ? "day" : h < 21 ? "dusk" : "night";
+    if (document.body.dataset.tod !== tod) document.body.dataset.tod = tod;
+  }
   function renderHome() {
+    paintTimeOfDay();
     const s = $("#screen-home");
     const openDecisions = T.decisions.filter((d) => d.status !== "decided").length;
     s.innerHTML = `
       <div class="hero">
         <div class="sun"></div>
+        ${petals()}
         <div class="kicker">April 2027 · 六人の旅</div>
         <h1>${esc(T.meta.title)}</h1>
         <div class="dates">Thu Apr 15 – Sun Apr 25 · ${T.meta.nights} nights on the ground</div>
@@ -1695,6 +1718,21 @@
     if (w.kind === "forecast") return (WMO[w.code] || ["\u{1F321}️"])[0];
     return w.rain >= 40 ? "\u{1F327}️" : w.rain >= 20 ? "\u{1F324}️" : "☀️";
   }
+  /* Which animated texture the strip wears. Driven by the data, not decoration
+     for its own sake: a week of cards becomes readable at a glance. */
+  function wxCond(w) {
+    if (!w) return "";
+    if (w.kind === "forecast") {
+      const c = w.code;
+      if (c >= 71 && c <= 77 || c === 85 || c === 86) return "snow";
+      if (c >= 51 && c <= 67 || c >= 80 && c <= 82 || c >= 95) return "rain";
+      if (c <= 1) return "sun";
+      return "cloud";
+    }
+    if (w.rain >= 45) return "rain";
+    if (w.rain <= 20) return "sun";
+    return "cloud";
+  }
   function wxLine(w, place) {
     if (!w) return "";
     const word = w.kind === "forecast" ? (WMO[w.code] || ["", ""])[1] : "";
@@ -1744,16 +1782,19 @@
   const dayLineup = (d) => (d.items || [])
     .map((i) => `${i.time ? i.time + " " : ""}${i.title}`);
 
+  let outfitOpen = {};   // date -> the full list of others is showing
+  let lastOutfitCount = null;
   function renderOutfits() {
     const s = $("#screen-outfits");
     const days = T.days || [];
     const today = isoDay(new Date());
     const mine = outfitCount();
+    const myDays = days.filter((d) => myOutfit(d.date));
     s.innerHTML = `
       <div class="section-title">Outfits</div>
       <div class="section-sub">What you are wearing each day, with the weather already on it. Late April swings from a cold Hakone night to a warm Kyoto afternoon, so this is worth ten minutes now instead of a suitcase argument later.</div>
       <div class="card" style="padding:12px 14px">
-        <div class="r-sub">${mine ? `You have planned <b>${mine}</b> of ${days.length} days.` : "Nothing planned yet. Start with the day you care most about."}</div>
+        <div class="r-sub">${mine ? `You have planned <b id="ofCount">${mine}</b> of ${days.length} days.` : "Nothing planned yet. Start with the day you care most about."}</div>
       </div>
       ${days.map((d) => {
         const f = fmtDate(d.date);
@@ -1761,7 +1802,8 @@
         const others = outfitsFor(d.date).filter((v) => v.voter !== state.me && byId(v.voter));
         const past = d.date < today;
         const sug = LS.get("outfitsug", {})[d.date];
-        return `<div class="card outfit-card${past ? " past" : ""}" data-outfit="${d.date}">
+        const sameAs = myDays.filter((x) => x.date !== d.date);
+        return `<div class="card outfit-card${past ? " past" : ""}${mineTxt ? " planned" : ""}" data-outfit="${d.date}">
           <div class="of-head">
             <div class="day-date" style="flex:0 0 auto"><div class="d">${f.day}</div><div class="m">${f.wd} ${f.mon}</div></div>
             <div style="flex:1;min-width:0">
@@ -1778,6 +1820,11 @@
             <button class="btn ghost" data-ofai="${d.date}" style="flex:1.6">✨ What should I wear?</button>
             ${mineTxt ? `<button class="btn danger" data-ofclear="${d.date}" style="flex:0 0 auto">✕</button>` : ""}
           </div>
+          ${sameAs.length ? `<div class="r-sub" style="margin-top:8px">Same as
+            ${sameAs.slice(0, 4).map((x) => {
+              const g = fmtDate(x.date);
+              return `<button class="tl-map" data-ofday="${d.date}#${x.date}" style="margin-right:6px">${g.wd} ${g.day}</button>`;
+            }).join("")}</div>` : ""}
           <div class="r-sub" data-ofmsg="${d.date}" style="margin-top:6px"></div>
           ${sug ? `<div class="of-sug">
             <div class="r-sub" style="margin-bottom:8px"><b>✨ Suggested for this day</b></div>
@@ -1786,12 +1833,14 @@
             <div class="tl-map" data-ofdrop="${d.date}" style="margin-top:8px;cursor:pointer">Dismiss</div>
           </div>` : ""}
           ${others.length ? `<div class="of-others">
-            ${others.map((v) => {
+            ${(outfitOpen[d.date] ? others : others.slice(0, 3)).map((v) => {
               const t = byId(v.voter);
               return `<div class="of-other"><span class="avatar" style="${avatarBg(t)}">${avatarTxt(t)}</span>
                 <div style="flex:1;min-width:0"><b>${esc(t.name.split(" ")[0])}</b> ${esc(v.choice)}</div>
                 <button class="tl-map" data-ofcopy="${d.date}#${v.voter}">Same</button></div>`;
             }).join("")}
+            ${others.length > 3 ? `<button class="of-more" data-ofmore="${d.date}">${outfitOpen[d.date]
+              ? "Show fewer" : `and ${others.length - 3} more ›`}</button>` : ""}
           </div>` : ""}
         </div>`;
       }).join("")}
@@ -1802,6 +1851,50 @@
       </div>`;
     bindOutfits();
     fillOutfitWeather();
+    countUp($("#ofCount"), lastOutfitCount, mine);
+    lastOutfitCount = mine;
+    typeInSuggestion();
+  }
+  const calm = () => window.matchMedia && window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+  /* A number that ticks reads as something that happened. A number that jumps
+     reads as a redraw. */
+  function countUp(el, from, to) {
+    if (!el || from == null || from === to || calm()) return;
+    const steps = Math.min(Math.abs(to - from), 6), dir = to > from ? 1 : -1;
+    let cur = to - dir * steps, i = 0;
+    el.textContent = cur;
+    const tick = setInterval(() => {
+      cur += dir; i++;
+      el.textContent = cur;
+      if (i >= steps) { clearInterval(tick); el.textContent = to; }
+    }, 70);
+  }
+  /* The options write themselves in, so the assistant reads as thinking rather
+     than fetching. Only ever on the suggestion that just arrived. */
+  let freshSuggestion = null;
+  function typeInSuggestion() {
+    const id = freshSuggestion; freshSuggestion = null;
+    if (!id || calm()) return;
+    const card = $(`[data-outfit="${id}"]`);
+    if (!card) return;
+    card.querySelectorAll(".of-pick").forEach((btn, n) => {
+      const full = btn.textContent;
+      btn.textContent = "";
+      btn.style.minHeight = btn.offsetHeight + "px";
+      let i = 0;
+      setTimeout(() => {
+        const t = setInterval(() => {
+          btn.textContent = full.slice(0, ++i);
+          if (i >= full.length) { clearInterval(t); btn.style.minHeight = ""; }
+        }, 14);
+      }, n * 260);
+    });
+  }
+  function settle(id) {
+    const card = $(`[data-outfit="${id}"]`);
+    if (!card || calm()) return;
+    card.classList.add("just-saved");
+    setTimeout(() => card.classList.remove("just-saved"), 600);
   }
   /* The screen draws first and the weather lines fill themselves in, so a slow
      network costs a line of text rather than the whole screen. */
@@ -1813,6 +1906,7 @@
       if (!el) return;
       el.innerHTML = w ? wxLine(w, cityName(d.city))
         : `<span style="opacity:.7">No weather for ${esc(cityName(d.city))} right now.</span>`;
+      if (w) el.dataset.cond = wxCond(w); else delete el.dataset.cond;
     }
   }
   function bindOutfits() {
@@ -1829,7 +1923,21 @@
         const box = $(`[data-ofin="${id}"]`);
         msg(id, "Saving…");
         const ok = await setOutfit(id, box ? box.value : "");
-        if (ok) { renderOutfits(); msg(id, "Saved ✓"); }
+        if (ok) { renderOutfits(); settle(id); msg(id, "Saved ✓"); }
+        return;
+      }
+      const more = t.closest("[data-ofmore]");
+      if (more) {
+        const id = more.dataset.ofmore;
+        outfitOpen[id] = !outfitOpen[id];
+        renderOutfits();
+        return;
+      }
+      const same = t.closest("[data-ofday]");
+      if (same) {
+        const [id, from] = same.dataset.ofday.split("#");
+        const box = $(`[data-ofin="${id}"]`);
+        if (box) { box.value = myOutfit(from); box.focus(); msg(id, "Copied from that day. Tap Save to keep it."); }
         return;
       }
       const clr = t.closest("[data-ofclear]");
@@ -1903,6 +2011,7 @@
       const all = LS.get("outfitsug", {});
       all[date] = parsed;
       LS.set("outfitsug", all);
+      freshSuggestion = date;
       renderOutfits();
     } catch (e) {
       msg("⚠️ Couldn't reach the assistant. Is the trip-assistant edge function deployed?");
