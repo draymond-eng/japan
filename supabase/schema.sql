@@ -180,3 +180,33 @@ drop policy if exists "trip-photos delete" on storage.objects;
 create policy "trip-photos read"   on storage.objects for select using (bucket_id = 'trip-photos');
 create policy "trip-photos insert" on storage.objects for insert with check (bucket_id = 'trip-photos');
 create policy "trip-photos delete" on storage.objects for delete using (bucket_id = 'trip-photos');
+
+-- ---- Updates + push notifications ------------------------------------------
+-- Run this block once in the SQL Editor to switch notifications on.
+-- announcements is the record, so anyone who misses the lock screen still sees
+-- the update in the app. push_subs is one row per phone, not per person: the
+-- same person on a phone and an iPad is two subscriptions, which is correct.
+create table if not exists public.announcements (
+  id         uuid primary key default gen_random_uuid(),
+  title      text default '',
+  body       text not null,
+  author     text default '',
+  created_at timestamptz default now()
+);
+create index if not exists announcements_created_idx on public.announcements(created_at desc);
+
+create table if not exists public.push_subs (
+  endpoint   text primary key,
+  voter      text default '',
+  p256dh     text not null,
+  auth       text not null,
+  created_at timestamptz default now()
+);
+
+alter table public.announcements enable row level security;
+alter table public.push_subs     enable row level security;
+drop policy if exists "anon announcements" on public.announcements;
+drop policy if exists "anon push_subs"     on public.push_subs;
+create policy "anon announcements" on public.announcements for all using (true) with check (true);
+create policy "anon push_subs"     on public.push_subs     for all using (true) with check (true);
+alter publication supabase_realtime add table public.announcements;

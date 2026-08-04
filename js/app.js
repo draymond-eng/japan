@@ -10,10 +10,14 @@
   const esc = (s) => String(s == null ? "" : s).replace(/[&<>"']/g, (c) => (
     { "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
   const byId = (id) => T.travelers.find((t) => t.id === id);
-  const initials = (name) => name.split(/\s+/).map((w) => w[0]).slice(0, 2).join("").toUpperCase();
+  /* A row can outlive the person it points at: someone leaves the trip, an id
+     is edited, an old device replays a write. None of that is worth a blank
+     app, so an unknown traveler degrades to a grey "?" tile. */
+  const initials = (name) => String(name == null ? "" : name).trim().split(/\s+/)
+    .map((w) => w[0]).filter(Boolean).slice(0, 2).join("").toUpperCase() || "?";
   // Avatar: use a photo if the traveler has one, else a colored initials tile.
-  const avatarBg = (t) => t.photo ? `background-image:url('${t.photo}')` : `background:${t.color}`;
-  const avatarTxt = (t) => t.photo ? "" : initials(t.name);
+  const avatarBg = (t) => (t && t.photo) ? `background-image:url('${t.photo}')` : `background:${(t && t.color) || "#9b9187"}`;
+  const avatarTxt = (t) => (t && t.photo) ? "" : initials(t && t.name);
 
   /* ---- Local persistence ------------------------------------------------- */
   const LS = {
@@ -46,6 +50,7 @@
     liveRate: null,     // fetched JPY per USD
     rateOverride: LS.get("rateOverride", null), // manual JPY per USD
     photos: [],         // uploaded trip photos
+    announcements: [],  // {id, title, body, author, created_at}
   };
   const save = () => {
     LS.set("me", state.me); LS.set("packing", state.packing);
@@ -87,6 +92,7 @@
       if (table === "all" || table === "notes")    jobs.push(Backend.fetchNotes().then((n) => state.notes = n));
       if (table === "all" || table === "confirmations") jobs.push(Backend.fetchConfirmations().then((c) => state.confirmations = c));
       if (table === "all" || table === "photos")   jobs.push(Backend.fetchPhotos().then((p) => state.photos = p));
+      if (table === "all" || table === "announcements") jobs.push(Backend.fetchAnnouncements().then((a) => state.announcements = a));
       await Promise.all(jobs);
     },
   };
@@ -200,6 +206,12 @@
     if (!primary.includes(screen)) $("#moreTab").classList.add("active");
     window.scrollTo({ top: 0, behavior: "instant" in window ? "instant" : "auto" });
     closeSheet();
+    /* Draw it fresh on the way in. Screens were only rendered at boot and on
+       data changes, so anything that arrived while you were on another tab, an
+       update pushed to your lock screen most of all, was still showing the old
+       version when you navigated over to look at it. */
+    try { if (RENDERERS[screen]) RENDERERS[screen](); }
+    catch (e) { console.error("render " + screen, e); }
     if (screen === "map") initMap();
   }
   $$(".tab[data-screen]").forEach((t) => t.addEventListener("click", () => show(t.dataset.screen)));
@@ -729,7 +741,7 @@
             return `<button class="stay-opt ${sel ? "sel" : ""}" data-stay="${st.city}" data-opt="${o.id}">
               <div class="stay-opt-main">
                 <div class="stay-opt-name">${esc(o.name)}</div>
-                <div class="stay-opt-tag">${esc(o.tag)}${author ? ` · by ${esc(author.name.split(" ")[0])}` : ""}</div>
+                <div class="stay-opt-tag">${esc(o.tag)}${author && author.name ? ` · by ${esc(author.name.split(" ")[0])}` : ""}</div>
                 ${o.note ? `<div class="stay-opt-note">${esc(o.note)}</div>` : ""}
                 <div style="display:flex;align-items:center;gap:14px;margin-top:8px;flex-wrap:wrap">
                   ${o.link ? `<a class="tl-map" href="${esc(o.link)}" target="_blank" rel="noopener" onclick="event.stopPropagation()">🔗 Link</a>` : ""}
@@ -1542,6 +1554,143 @@
       btn.textContent = "Who are you?"; av.innerHTML = "👤";
     }
   }
+  /* ---- Push notifications ---------------------------------------------------
+     A trip is a stream of small changes: a train time moves, a booking lands,
+     someone is running late from Hakone. Those are worth a lock screen and
+     nothing else is, so notifications are attached to Updates only and never
+     fire on their own.
+
+     iOS only allows web push from a home-screen install, which is exactly why
+     the install prompt comes first.
+     -------------------------------------------------------------------------- */
+  const pushSupported = () => "serviceWorker" in navigator && "PushManager" in window && "Notification" in window;
+  function pushState() {
+    if (!pushSupported()) return "unsupported";
+    if (!(window.SUPABASE_CONFIG || {}).vapidPublic) return "unconfigured";
+    if (Notification.permission === "denied") return "blocked";
+    if (Notification.permission === "granted" && LS.get("pushOn", false)) return "on";
+    return "off";
+  }
+  function urlB64ToUint8Array(base64String) {
+    const padding = "=".repeat((4 - (base64String.length % 4)) % 4);
+    const base64 = (base64String + padding).replace(/-/g, "+").replace(/_/g, "/");
+    const raw = atob(base64);
+    const out = new Uint8Array(raw.length);
+    for (let i = 0; i < raw.length; i++) out[i] = raw.charCodeAt(i);
+    return out;
+  }
+  async function enablePush() {
+    const cfg = window.SUPABASE_CONFIG || {};
+    if (!pushSupported() || !cfg.vapidPublic) return { ok: false, msg: "This browser can't do notifications." };
+    if (!isStandalone() && /iPad|iPhone|iPod/.test(navigator.userAgent))
+      return { ok: false, msg: "On iPhone, add Japan 2027 to your home screen first, then turn alerts on from there." };
+    const perm = await Notification.requestPermission();
+    if (perm !== "granted") return { ok: false, msg: "Notifications are blocked. Turn them on in your phone's settings for Japan 2027." };
+    try {
+      const reg = await navigator.serviceWorker.ready;
+      let sub = await reg.pushManager.getSubscription();
+      if (!sub) sub = await reg.pushManager.subscribe({ userVisibleOnly: true, applicationServerKey: urlB64ToUint8Array(cfg.vapidPublic) });
+      const j = sub.toJSON();
+      const ok = await Backend.savePushSub({ endpoint: sub.endpoint, voter: state.me || "", p256dh: j.keys.p256dh, auth: j.keys.auth });
+      if (!ok) return { ok: false, msg: "Couldn't save your subscription. Is the push_subs table set up?" };
+      LS.set("pushOn", true);
+      return { ok: true, msg: "Alerts are on for this phone." };
+    } catch (e) {
+      console.warn(e);
+      return { ok: false, msg: "Couldn't turn on alerts on this device." };
+    }
+  }
+  async function disablePush() {
+    try {
+      const reg = await navigator.serviceWorker.ready;
+      const sub = await reg.pushManager.getSubscription();
+      if (sub) { await Backend.removePushSub(sub.endpoint); await sub.unsubscribe(); }
+    } catch (e) { console.warn(e); }
+    LS.set("pushOn", false);
+  }
+
+  /* ---- Updates: the thing worth pushing ------------------------------------ */
+  function renderAnnounce() {
+    const s = $("#screen-announce");
+    const st = pushState();
+    const rows = state.announcements || [];
+    const toggle = {
+      on: `<div class="r-sub" style="color:var(--matcha,#5a7a52);font-weight:800">✓ Alerts are on for this phone</div>
+           <button class="btn ghost" id="pushOff" style="width:100%;margin-top:10px">Turn alerts off</button>`,
+      off: `<button class="btn primary" id="pushOn" style="width:100%">Turn on alerts</button>`,
+      blocked: `<div class="r-sub">Your phone is blocking notifications for this app. Turn them back on in Settings, then come back here.</div>`,
+      unsupported: `<div class="r-sub">This browser can't do notifications. Safari on an iPhone can, once the app is on your home screen.</div>`,
+      unconfigured: `<div class="r-sub">Notifications are not switched on for this trip yet.</div>`,
+    }[st];
+    const iosHint = st === "off" && !isStandalone() && /iPad|iPhone|iPod/.test(navigator.userAgent)
+      ? `<div class="r-sub" style="margin-top:8px">On iPhone this only works once the app is on your home screen. <b id="annInstall" style="cursor:pointer;text-decoration:underline">Show me how</b></div>` : "";
+    s.innerHTML = `
+      <div class="section-title">Updates</div>
+      <div class="section-sub">The one place worth interrupting people for. Post here and every phone with alerts on hears about it.</div>
+      <div class="card">
+        <h3>\u{1F514} Alerts on this phone</h3>
+        <p class="section-sub" style="margin:2px 0 12px">Only Updates ever notifies you. Votes, notes and photos stay quiet.</p>
+        ${toggle}${iosHint}
+        <div id="pushMsg" class="r-sub" style="margin-top:8px"></div>
+      </div>
+      <div class="card">
+        <h3>\u{1F4E3} Post an update</h3>
+        <input id="annTitle" placeholder="Short headline, e.g. Hakone train moved" style="width:100%;padding:11px;margin:6px 0 8px;border:1px solid var(--line);border-radius:var(--r-sm);font-size:14.5px;background:#fffdfa;color:var(--ink)" />
+        <textarea id="annBody" rows="3" placeholder="What changed, and what anyone needs to do about it." style="width:100%;padding:11px;border:1px solid var(--line);border-radius:var(--r-sm);font-size:14.5px;background:#fffdfa;color:var(--ink);font-family:inherit;resize:vertical"></textarea>
+        <button class="btn primary" id="annSend" style="width:100%;margin-top:10px">Send to the crew</button>
+        <div id="annMsg" class="r-sub" style="margin-top:8px"></div>
+      </div>
+      ${rows.length ? rows.map((a) => {
+        const who = byId(a.author);
+        const when = a.created_at ? new Date(a.created_at) : null;
+        return `<div class="card" style="padding:15px 16px">
+          ${a.title ? `<h3 style="margin:0 0 6px">${esc(a.title)}</h3>` : ""}
+          <div style="font-size:14px;line-height:1.6;white-space:pre-wrap">${esc(a.body || "")}</div>
+          <div class="r-sub" style="margin-top:8px">${who ? esc(who.name.split(" ")[0]) + " · " : ""}${
+            when ? when.toLocaleString([], { month: "short", day: "numeric", hour: "numeric", minute: "2-digit" }) : ""}</div>
+        </div>`;
+      }).join("") : emptyCard("\u{1F4EC}", "No updates yet", "When something changes that everyone needs to know, this is where it goes.")}`;
+    const on = $("#pushOn"); if (on) on.addEventListener("click", async () => {
+      $("#pushMsg").textContent = "Asking your phone…";
+      const r = await enablePush();
+      $("#pushMsg").textContent = r.msg;
+      if (r.ok) renderAnnounce();
+    });
+    const off = $("#pushOff"); if (off) off.addEventListener("click", async () => { await disablePush(); renderAnnounce(); });
+    const ai = $("#annInstall"); if (ai) ai.addEventListener("click", () => maybeOfferInstall(true));
+    $("#annSend").addEventListener("click", sendAnnouncement);
+  }
+  const emptyCard = (emoji, title, body) => `<div class="card" style="text-align:center;padding:26px 18px">
+    <div style="font-size:38px;margin-bottom:6px">${emoji}</div>
+    <h3 style="margin:0 0 6px">${title}</h3>
+    <p class="section-sub" style="margin:0">${body}</p></div>`;
+
+  async function sendAnnouncement() {
+    const t = $("#annTitle"), b = $("#annBody"), msg = $("#annMsg");
+    const body = b.value.trim();
+    if (!body) { msg.textContent = "Write something first."; return; }
+    if (!state.me) { openWho(); return; }
+    if (!SYNC.on) { msg.textContent = "Not connected to the backend, so this would only live on your phone."; return; }
+    msg.textContent = "Sending…";
+    try {
+      const cfg = window.SUPABASE_CONFIG;
+      const res = await fetch(`${cfg.url}/functions/v1/send-push`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json", "Authorization": "Bearer " + cfg.anonKey, "apikey": cfg.anonKey },
+        body: JSON.stringify({ title: t.value.trim(), body, author: state.me }),
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!data.ok) { msg.textContent = "⚠️ " + fnError(res, data, "send-push"); return; }
+      t.value = ""; b.value = "";
+      await Sync.hydrate("announcements");
+      renderAnnounce();
+      const m = $("#annMsg");
+      if (m) m.textContent = data.sent ? `Posted. ${data.sent} phone${data.sent === 1 ? "" : "s"} were notified.` : "Posted. Nobody has alerts on yet.";
+    } catch (e) {
+      msg.textContent = "⚠️ Couldn't reach the server. Check you're online.";
+    }
+  }
+
   /* ---- Add to home screen --------------------------------------------------
      Installed, this is a real app: full screen, its own icon, and it opens
      without signal, which matters more on a Tokyo subway platform than it does
@@ -2167,7 +2316,7 @@
     decisions: renderDecisions, booking: renderBooking, fares: renderFares,
     vault: renderVault, notes: renderNotes, translate: renderTranslate, music: renderMusic,
     ideas: renderIdeas, photos: renderPhotos, guide: renderGuide, assistant: renderAssistant,
-    outfits: renderOutfits,
+    outfits: renderOutfits, announce: renderAnnounce,
   };
   function renderCurrent() {
     const active = $(".screen.active");

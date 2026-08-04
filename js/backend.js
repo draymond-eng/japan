@@ -252,6 +252,24 @@
     catch (e) { writeFailed("removeStayOption", e, { kind: "remove", table: "stay_options", id }); return false; }
   }
 
+  /* ---- Updates + push subscriptions --------------------------------------- */
+  async function fetchAnnouncements() {
+    try { const { data, error } = await client.from("announcements").select("*").order("created_at", { ascending: false }); if (error) throw error; return data || []; }
+    catch (e) { console.warn("fetchAnnouncements", e); return []; }
+  }
+  async function removeAnnouncement(id) {
+    try { await client.from("announcements").delete().eq("id", id); return true; }
+    catch (e) { writeFailed("removeAnnouncement", e, { kind: "remove", table: "announcements", id }); return false; }
+  }
+  async function savePushSub(row) {
+    try { const { error } = await client.from("push_subs").upsert(row, { onConflict: "endpoint" }); if (error) throw error; return true; }
+    catch (e) { console.warn("savePushSub", e); return false; }
+  }
+  async function removePushSub(endpoint) {
+    try { await client.from("push_subs").delete().eq("endpoint", endpoint); return true; }
+    catch (e) { console.warn("removePushSub", e); return false; }
+  }
+
   /* ---- Photos (Storage + table) ------------------------------------------ */
   async function fetchPhotos() {
     try { const { data, error } = await client.from("photos").select("*").order("created_at", { ascending: false }); if (error) throw error; return data || []; }
@@ -293,6 +311,7 @@
         .on("postgres_changes", { event: "*", schema: "public", table: "notes" }, () => onChange("notes"))
         .on("postgres_changes", { event: "*", schema: "public", table: "confirmations" }, () => onChange("confirmations"))
         .on("postgres_changes", { event: "*", schema: "public", table: "photos" }, () => onChange("photos"))
+        .on("postgres_changes", { event: "*", schema: "public", table: "announcements" }, () => onChange("announcements"))
         .subscribe();
     } catch (e) { console.warn("subscribe", e); return null; }
   }
@@ -312,6 +331,7 @@
     fetchNotes, addNote, updateNote, removeNote,
     fetchConfirmations, addConfirmation, removeConfirmation,
     fetchPhotos, uploadPhoto, removePhoto,
+    fetchAnnouncements, removeAnnouncement, savePushSub, removePushSub,
     subscribe,
   };
 })();

@@ -12,4 +12,10 @@
 window.SUPABASE_CONFIG = {
   url: "https://tgcrjsapqfogdagqoccq.supabase.co",
   anonKey: "sb_publishable_H65vKGnPAyJo2ojZ_yksFQ_UNPpmihe",
+
+  /* Public half of the web-push keypair. Safe to commit: it only lets a phone
+     say "this is the server I expect". The private half lives ONLY in Supabase
+     Edge Function Secrets and must never end up in this file. Leave empty to
+     turn notifications off. */
+  vapidPublic: "BHDUSHMMDdpXWLZsg2PYbXxEkNJaCNfL2v_TM7qI9Q77Q9MF2dAdey6_HqEyyN5Z-F0wqYioN2PekTrhtCTzIAM",
 };
