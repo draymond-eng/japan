@@ -635,7 +635,15 @@
         <h3>📋 Booking timeline</h3>
         <p class="section-sub" style="margin:2px 0 12px">What to book and when - now lives in its own tab.</p>
         <button class="btn primary" style="width:100%" data-go="booking">Open the Booking timeline</button>
+      </div>
+      <div class="card">
+        <h3>📱 Put this on your home screen</h3>
+        <p class="section-sub" style="margin:2px 0 12px">${isStandalone()
+          ? "Already installed on this phone. It opens full screen and works with no signal."
+          : "One tap to open, full screen, and it still works with no signal. Worth doing before you fly."}</p>
+        <button class="btn ghost" id="crewInstall" style="width:100%">${isStandalone() ? "Check the install" : "Show me how"}</button>
       </div>`;
+    const ci = $("#crewInstall"); if (ci) ci.addEventListener("click", () => maybeOfferInstall(true));
   }
 
   /* =======================================================================
@@ -1534,20 +1542,91 @@
       btn.textContent = "Who are you?"; av.innerHTML = "👤";
     }
   }
+  /* ---- Add to home screen --------------------------------------------------
+     Installed, this is a real app: full screen, its own icon, and it opens
+     without signal, which matters more on a Tokyo subway platform than it does
+     at home. We ask once someone has said who they are, and back off for a week
+     if they say later.
+     ------------------------------------------------------------------------ */
+  let deferredInstall = null;
+  window.addEventListener("beforeinstallprompt", (e) => { e.preventDefault(); deferredInstall = e; });
+  const isStandalone = () =>
+    window.matchMedia("(display-mode: standalone)").matches || window.navigator.standalone === true;
+  function closeInstall() { $("#installModal").classList.remove("open"); }
+  function maybeOfferInstall(force) {
+    if (!force) {
+      if (isStandalone()) return;                  // already on the home screen
+      if (!state.me) return;                       // wait until they are tagged
+      const snooze = LS.get("installSnooze", 0);
+      if (snooze && Date.now() < snooze) return;   // said later recently
+      if (LS.get("installDone", false)) return;
+    }
+    if (isStandalone()) {
+      $("#installBody").innerHTML = `
+        <div style="text-align:center;font-size:46px;margin:4px 0 8px">✅</div>
+        <h3 style="text-align:center;margin:0 0 8px">You're all set</h3>
+        <p class="section-sub" style="text-align:center;margin:0 0 16px">Japan 2027 is installed on this phone. It opens without signal, which is the whole point once you are on a subway platform in Shinjuku.</p>
+        <button class="btn ghost" id="instClose" style="width:100%">Nice</button>`;
+      $("#installModal").classList.add("open");
+      $("#instClose").addEventListener("click", closeInstall);
+      return;
+    }
+    const ua = navigator.userAgent;
+    const iOS = /iPad|iPhone|iPod/.test(ua) || (navigator.platform === "MacIntel" && navigator.maxTouchPoints > 1);
+    const steps = iOS
+      ? `<div class="inst-step"><span class="n">1</span><div>Tap the <b>Share</b> button <span class="inst-icon">􀈂</span> at the bottom of Safari</div></div>
+         <div class="inst-step"><span class="n">2</span><div>Scroll down and tap <b>Add to Home Screen</b></div></div>
+         <div class="inst-step"><span class="n">3</span><div>Tap <b>Add</b>. Done, it's on your phone</div></div>`
+      : deferredInstall
+        ? `<div class="inst-step"><span class="n">1</span><div>Tap <b>Install</b> below and confirm</div></div>
+           <div class="inst-step"><span class="n">2</span><div>Japan 2027 lands on your home screen like any app</div></div>`
+        : `<div class="inst-step"><span class="n">1</span><div>Open your browser menu <b>⋮</b></div></div>
+           <div class="inst-step"><span class="n">2</span><div>Tap <b>Install app</b> or <b>Add to Home screen</b></div></div>`;
+    $("#installBody").innerHTML = `
+      <div style="text-align:center;font-size:46px;margin:2px 0 8px">\u{1F1EF}\u{1F1F5}</div>
+      <h3 style="text-align:center;margin:0 0 6px">Put Japan 2027 on your home screen</h3>
+      <p class="section-sub" style="text-align:center;margin:0 0 16px;font-size:13.5px">One tap to open, full screen, and it still works with no signal. Handy on the train, essential in a temple with one bar.</p>
+      <div class="inst-steps">${steps}</div>
+      <div class="btn-row" style="margin-top:18px">
+        <button class="btn ghost" id="instLater" style="flex:1">Later</button>
+        ${deferredInstall ? `<button class="btn primary" id="instGo" style="flex:2">Install</button>`
+                          : `<button class="btn primary" id="instGot" style="flex:2">Got it</button>`}
+      </div>`;
+    $("#installModal").classList.add("open");
+    $("#instLater").addEventListener("click", () => { LS.set("installSnooze", Date.now() + 7 * 864e5); closeInstall(); });
+    const got = $("#instGot"); if (got) got.addEventListener("click", () => { LS.set("installSnooze", Date.now() + 2 * 864e5); closeInstall(); });
+    const go = $("#instGo"); if (go) go.addEventListener("click", async () => {
+      if (!deferredInstall) return closeInstall();
+      deferredInstall.prompt();
+      const res = await deferredInstall.userChoice.catch(() => ({}));
+      if (res && res.outcome === "accepted") LS.set("installDone", true);
+      deferredInstall = null;
+      closeInstall();
+    });
+  }
+
   function openWho() {
     const box = $("#whoOptions");
     box.innerHTML = T.travelers.map((t) => `<div class="who-opt ${state.me === t.id ? "sel" : ""}" data-me="${t.id}">
       <span class="avatar" style="width:34px;height:34px;font-size:12px;${avatarBg(t)}">${avatarTxt(t)}</span>${esc(t.name)}</div>`).join("");
     box.querySelectorAll("[data-me]").forEach((o) => o.addEventListener("click", () => {
+      const first = !state.me;
       state.me = o.dataset.me; save(); renderWhoami();
       box.querySelectorAll(".who-opt").forEach((x) => x.classList.toggle("sel", x === o));
       renderCurrent();
+      // the ask lands after they close this one, not on top of it
+      if (first) setTimeout(() => { if (!$("#whoModal").classList.contains("open")) maybeOfferInstall(); }, 900);
     }));
     $("#whoModal").classList.add("open");
   }
   $("#whoamiBtn").addEventListener("click", openWho);
-  $("#whoClose").addEventListener("click", () => $("#whoModal").classList.remove("open"));
-  $("#whoModal").addEventListener("click", (e) => { if (e.target.id === "whoModal") $("#whoModal").classList.remove("open"); });
+  $("#whoClose").addEventListener("click", () => { $("#whoModal").classList.remove("open"); setTimeout(maybeOfferInstall, 350); });
+  $("#whoModal").addEventListener("click", (e) => {
+    if (e.target.id !== "whoModal") return;
+    $("#whoModal").classList.remove("open");
+    setTimeout(maybeOfferInstall, 350);
+  });
+  $("#installModal").addEventListener("click", (e) => { if (e.target.id === "installModal") closeInstall(); });
 
   /* =======================================================================
      ASSISTANT - ✨ trip chat, grounded in the live trip data
@@ -2101,6 +2180,7 @@
   renderAll();
   renderWhoami();
   if (!state.me) setTimeout(openWho, 600);
+  else setTimeout(maybeOfferInstall, 1400);
   Sync.init(); // connects to the backend if configured; otherwise stays local
   loadWeather();
   loadRate();
