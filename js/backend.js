@@ -23,6 +23,17 @@
     } catch (e) { console.warn("Backend init failed:", e); return false; }
   }
 
+  /* The Supabase client does NOT throw when a write is rejected. It resolves
+     with { error }. Awaiting one and moving on therefore reports success for a
+     write that never happened, which silently loses the change and skips the
+     retry queue. Every mutation goes through here so that can only be got
+     wrong in one place. */
+  async function did(q) {
+    const r = await q;
+    if (r && r.error) throw r.error;
+    return r;
+  }
+
   /* ---- Votes: one row per (kind, topic, voter) ---------------------------- */
   async function fetchVotes() {
     try { const { data, error } = await client.from("votes").select("*"); if (error) throw error; return data || []; }
@@ -31,9 +42,9 @@
   async function castVote(kind, topic, choice, voter) {
     try {
       if (choice == null) {
-        await client.from("votes").delete().match({ kind, topic, voter });
+        await did(client.from("votes").delete().match({ kind, topic, voter }));
       } else {
-        await client.from("votes").upsert({ kind, topic, choice, voter }, { onConflict: "kind,topic,voter" });
+        await did(client.from("votes").upsert({ kind, topic, choice, voter }, { onConflict: "kind,topic,voter" }));
       }
       return true;
     } catch (e) {
@@ -117,7 +128,7 @@
     catch (e) { writeFailed("addExpense", e, { kind: "insert", table: "expenses", row: withId }); return { ...withId, _pending: true }; }
   }
   async function removeExpense(id) {
-    try { await client.from("expenses").delete().eq("id", id); return true; }
+    try { await did(client.from("expenses").delete().eq("id", id)); return true; }
     catch (e) { writeFailed("removeExpense", e, { kind: "remove", table: "expenses", id }); return false; }
   }
 
@@ -134,7 +145,7 @@
     catch (e) { writeFailed("addIdea", e, { kind: "insert", table: "ideas", row: withId }); return { ...withId, _pending: true }; }
   }
   async function removeIdea(id) {
-    try { await client.from("ideas").delete().eq("id", id); return true; }
+    try { await did(client.from("ideas").delete().eq("id", id)); return true; }
     catch (e) { writeFailed("removeIdea", e, { kind: "remove", table: "ideas", id }); return false; }
   }
 
@@ -151,7 +162,7 @@
     catch (e) { writeFailed("addDecision", e, { kind: "insert", table: "decisions", row: withId }); return { ...withId, _pending: true }; }
   }
   async function removeDecision(id) {
-    try { await client.from("decisions").delete().eq("id", id); return true; }
+    try { await did(client.from("decisions").delete().eq("id", id)); return true; }
     catch (e) { writeFailed("removeDecision", e, { kind: "remove", table: "decisions", id }); return false; }
   }
 
@@ -168,7 +179,7 @@
     catch (e) { writeFailed("addFare", e, { kind: "insert", table: "fares", row: withId }); return { ...withId, _pending: true }; }
   }
   async function removeFare(id) {
-    try { await client.from("fares").delete().eq("id", id); return true; }
+    try { await did(client.from("fares").delete().eq("id", id)); return true; }
     catch (e) { writeFailed("removeFare", e, { kind: "remove", table: "fares", id }); return false; }
   }
 
@@ -185,11 +196,11 @@
     catch (e) { writeFailed("addNote", e, { kind: "insert", table: "notes", row: withId }); return { ...withId, _pending: true }; }
   }
   async function updateNote(id, patch) {
-    try { await client.from("notes").update(patch).eq("id", id); return true; }
+    try { await did(client.from("notes").update(patch).eq("id", id)); return true; }
     catch (e) { writeFailed("updateNote", e, { kind: "update", table: "notes", id, patch }); return false; }
   }
   async function removeNote(id) {
-    try { await client.from("notes").delete().eq("id", id); return true; }
+    try { await did(client.from("notes").delete().eq("id", id)); return true; }
     catch (e) { writeFailed("removeNote", e, { kind: "remove", table: "notes", id }); return false; }
   }
 
@@ -214,7 +225,7 @@
     } catch (e) { writeFailed("addConfirmation", e, { kind: "insert", table: "confirmations", row: withId }); return { ...withId, _pending: true }; }
   }
   async function removeConfirmation(row) {
-    try { if (row.path) await client.storage.from(BUCKET).remove([row.path]); await client.from("confirmations").delete().eq("id", row.id); return true; }
+    try { if (row.path) await client.storage.from(BUCKET).remove([row.path]); await did(client.from("confirmations").delete().eq("id", row.id)); return true; }
     catch (e) { writeFailed("removeConfirmation", e, { kind: "remove", table: "confirmations", id }); return false; }
   }
 
@@ -231,7 +242,7 @@
     }
   }
   async function removeFlight(traveler, dir) {
-    try { await client.from("flights").delete().match({ traveler, dir }); return true; }
+    try { await did(client.from("flights").delete().match({ traveler, dir })); return true; }
     catch (e) { writeFailed("removeFlight", e, { kind: "removeBy", table: "flights", match: { traveler, dir } }); return false; }
   }
 
@@ -248,7 +259,7 @@
     catch (e) { writeFailed("addStayOption", e, { kind: "insert", table: "stay_options", row: withId }); return { ...withId, _pending: true }; }
   }
   async function removeStayOption(id) {
-    try { await client.from("stay_options").delete().eq("id", id); return true; }
+    try { await did(client.from("stay_options").delete().eq("id", id)); return true; }
     catch (e) { writeFailed("removeStayOption", e, { kind: "remove", table: "stay_options", id }); return false; }
   }
 
@@ -258,7 +269,7 @@
     catch (e) { console.warn("fetchAnnouncements", e); return []; }
   }
   async function removeAnnouncement(id) {
-    try { await client.from("announcements").delete().eq("id", id); return true; }
+    try { await did(client.from("announcements").delete().eq("id", id)); return true; }
     catch (e) { writeFailed("removeAnnouncement", e, { kind: "remove", table: "announcements", id }); return false; }
   }
   async function savePushSub(row) {
@@ -266,7 +277,7 @@
     catch (e) { console.warn("savePushSub", e); return false; }
   }
   async function removePushSub(endpoint) {
-    try { await client.from("push_subs").delete().eq("endpoint", endpoint); return true; }
+    try { await did(client.from("push_subs").delete().eq("endpoint", endpoint)); return true; }
     catch (e) { console.warn("removePushSub", e); return false; }
   }
 
@@ -292,7 +303,7 @@
   async function removePhoto(row) {
     try {
       if (row.path) await client.storage.from(BUCKET).remove([row.path]);
-      await client.from("photos").delete().eq("id", row.id);
+      await did(client.from("photos").delete().eq("id", row.id));
       return true;
     } catch (e) { writeFailed("removePhoto", e, { kind: "remove", table: "photos", id }); return false; }
   }
